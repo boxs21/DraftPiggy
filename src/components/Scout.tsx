@@ -158,7 +158,11 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
           ))}
         </select>
         <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{j.riotId}</span>
-        {j.estado === "listo" && <span className="text-xs text-neutral-600 tabular-nums">{j.partidas} ranked</span>}
+        {j.estado === "listo" && (
+          <span className="text-xs text-neutral-600 tabular-nums">
+            {j.profundizando ? <span className="animate-pulse text-cyan-300/70">{j.partidas} ranked · profundizando…</span> : `${j.partidas} ranked`}
+          </span>
+        )}
         <button
           type="button"
           onClick={() => plantel.quitar(equipo, j.riotId)}
@@ -169,32 +173,7 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
         </button>
       </div>
 
-      {j.estado === "listo" && (
-        <div className="flex flex-wrap gap-2">
-          {j.champs?.length ? (
-            j.champs.map((c) => {
-              const champ = champsPorId.get(c.id);
-              const wr = c.victorias / c.partidas;
-              return (
-                <div key={c.id} title={`${champ?.nombre ?? c.id} · ${c.partidas} partidas · ${Math.round(wr * 100)}% WR`} className="flex flex-col items-center gap-0.5">
-                  <IconoChamp
-                    version={version}
-                    id={c.id}
-                    nombre={champ?.nombre ?? c.id}
-                    size={36}
-                    className="rounded-md ring-1 ring-white/10 transition hover:scale-110 hover:ring-cyan-400/60"
-                  />
-                  <span className="text-[10px] text-neutral-400 tabular-nums">
-                    {c.partidas}·<span className={wr >= 0.6 ? "text-cyan-300" : wr < 0.45 ? "text-rose-400" : ""}>{Math.round(wr * 100)}%</span>
-                  </span>
-                </div>
-              );
-            })
-          ) : (
-            <span className="text-xs text-neutral-600">Sin ranked recientes</span>
-          )}
-        </div>
-      )}
+      {j.estado === "listo" && <PoolJugador jugador={j} champsPorId={champsPorId} version={version} />}
       {(j.estado === "cargando" || j.estado === "esperando") && (
         <p className="animate-pulse text-xs text-neutral-500">{j.estado === "cargando" ? "Buscando partidas…" : "En cola…"}</p>
       )}
@@ -207,5 +186,65 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
         </p>
       )}
     </li>
+  );
+}
+
+// ranked: destaco los champs con 2 o mas partidas (el pool de verdad) y agrupo los de una sola, que suelen ser ruido.
+// maestria: el pool de fondo, solo lo que jugo en los ultimos 60 dias
+function PoolJugador({ jugador: j, champsPorId, version }: { jugador: Jugador; champsPorId: Map<string, Champ>; version: string }) {
+  const nombre = (id: string) => champsPorId.get(id)?.nombre ?? id;
+  const fuertes = (j.champs ?? []).filter((c) => c.partidas >= 2);
+  const sueltos = (j.champs ?? []).filter((c) => c.partidas < 2);
+  const puntos = (p: number) => (p >= 1_000_000 ? `${(p / 1_000_000).toFixed(1)}M` : `${Math.round(p / 1000)}k`);
+  // fecha fija y no "hace X dias": el componente no puede depender de la hora actual al dibujarse
+  const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit" });
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-end gap-2">
+        {fuertes.length ? (
+          fuertes.map((c) => {
+            const wr = c.victorias / c.partidas;
+            return (
+              <div key={c.id} title={`${nombre(c.id)} · ${c.partidas} partidas · ${Math.round(wr * 100)}% WR`} className="flex flex-col items-center gap-0.5">
+                <IconoChamp
+                  version={version}
+                  id={c.id}
+                  nombre={nombre(c.id)}
+                  size={36}
+                  className="rounded-md ring-1 ring-white/10 transition hover:scale-110 hover:ring-cyan-400/60"
+                />
+                <span className="text-[10px] text-neutral-400 tabular-nums">
+                  {c.partidas}·<span className={wr >= 0.6 ? "text-cyan-300" : wr < 0.45 ? "text-rose-400" : ""}>{Math.round(wr * 100)}%</span>
+                </span>
+              </div>
+            );
+          })
+        ) : (
+          <span className="text-xs text-neutral-600">Ningún champ repetido en ranked</span>
+        )}
+        {sueltos.length > 0 && (
+          <span title={sueltos.map((c) => nombre(c.id)).join(", ")} className="mb-4 cursor-help text-[10px] text-neutral-600">
+            +{sueltos.length} de 1 partida
+          </span>
+        )}
+      </div>
+
+      {(j.maestria?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] uppercase tracking-widest text-neutral-600">Maestría</span>
+          {j.maestria!.map((m) => (
+            <span
+              key={m.id}
+              title={`${nombre(m.id)} · ${m.puntos.toLocaleString("es-CL")} puntos · nivel ${m.nivel} · jugado por última vez el ${fecha(m.ultima)}`}
+              className="flex items-center gap-1 rounded-md bg-white/[0.04] py-0.5 pr-1.5 pl-0.5"
+            >
+              <IconoChamp version={version} id={m.id} nombre={nombre(m.id)} size={20} className="rounded" />
+              <span className="text-[10px] text-neutral-400 tabular-nums">{puntos(m.puntos)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

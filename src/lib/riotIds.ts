@@ -5,6 +5,10 @@
 
 export const MAX_JUGADORES = 7; // 5 titulares y algun suplente
 
+// ranked por jugador: primero 20 para mostrar algo al instante, despues se profundiza a 50 (solo baja las que faltan)
+export const PARTIDAS_RAPIDAS = 20;
+export const PARTIDAS_MAX = 50;
+
 // lo que viaja del Scout al live draft: el jugador y el rol que juega en el equipo
 export type JugadorDraft = { riotId: string; rol?: string };
 export type JugadoresDraft = { nosotros: JugadorDraft[]; rival: JugadorDraft[] };

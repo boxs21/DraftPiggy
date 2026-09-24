@@ -34,7 +34,7 @@ export type Final = {
   meta: { parchesPorLiga: Record<string, string[]>; partidasPorLiga: Record<string, number>; muestraChica: boolean } | null;
   avisoMeta: string | null;
   scouting: { nosotros: number; rival: number };
-  amenazas: { id: string; partidas: number; winrate: number; jugadores: number }[];
+  amenazas: { id: string; partidas: number; winrate: number | null; jugadores: number }[]; // winrate null = solo maestria
   uso: Uso;
 };
 

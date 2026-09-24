@@ -38,7 +38,7 @@ Todo tiene que ser gratis salvo Mistral. Vercel, Supabase (free tier), Riot API,
 - **Leaguepedia**: NO usar sin login. Anónimo te bloquea como una hora después de 2-3 queries. Si algún día hace falta, con bot password de Fandom.
 - **Parches**: Riot nombra los parches por año (`26.17`) pero Data Dragon y Oracle's Elixir usan la numeración vieja (`16.17`). Se guarda y se muestra en formato Riot: convertir siempre con `parcheDesdeVersion` (`src/lib/champs.ts`). Los pros van 1-3 parches atrás del live, y cada liga en uno distinto (LCK suele ir uno atrás).
 - **First pick en 2026**: ya no va atado al side. En `acciones_pro`, `side` es la posición en el orden de draft (blue = el que pickeó primero) y `partidas_pro.primer_pick` dice de qué side del mapa era.
-- **Riot API** (scouting): servidor LAS = plataforma `la2`, cluster regional `americas` para `account-v1` y `match-v5`. Límites de la key: 20 req/s y 100 cada 2 min (`riot.ts` respeta `Retry-After`). La dev key vence cada 24 h; para producción, la personal key.
+- **Riot API** (scouting): servidor LAS = plataforma `la2` (maestría, `champion-mastery-v4`), cluster regional `americas` para `account-v1` y `match-v5`. Límites de la key: 20 req/s y 100 cada 2 min (`riot.ts` respeta `Retry-After`). La dev key vence cada 24 h; para producción, la personal key.
 - op.gg / u.gg: no tienen API pública, NO scrapear. El usuario pega el link (multisearch o perfil) y `riotIds.ts` solo lee los Riot IDs de la URL; los datos salen de la Riot API.
 - gol.gg: NO usar, no tiene API.
 
@@ -76,7 +76,7 @@ Picks fase 2: R4 | B4 B5 | R5
 - [x] Prueba de IA: botón "Recomendar con IA" con Mistral + pool rápido (texto)
 - [x] Meta pro (LCK/LEC/LPL/Worlds) desde Oracle's Elixir en Supabase, y la IA razonando con esos datos
 - [x] Login con contraseña, pantalla de side, deploy en Vercel (repo `boxs21/DraftPiggy`)
-- [x] Pestañas **Scout** y **Live draft**. Scout: pegar op.gg/u.gg de mi equipo y del rival → últimas 20 ranked de cada uno (cache en Supabase). La IA usa esos pools y el código calcula las "amenazas del rival" (comfort picks sumados entre jugadores, bonus flex y presencia pro); en nuestros bans la opción 1 es la amenaza #1
+- [x] Pestañas **Scout** y **Live draft**. Scout: pegar op.gg/u.gg de mi equipo y del rival → ranked de cada uno en dos pasadas (20 al instante, después sigue sola hasta 50; `PARTIDAS_RAPIDAS`/`PARTIDAS_MAX` en `riotIds.ts`) + maestría (`champion-mastery-v4`, top 15, solo lo jugado en 60 días, se refresca cada 6 h). En el pool se destacan los champs con 2+ partidas y los de 1 se agrupan. Todo con cache en Supabase. La IA usa esos pools y el código calcula las "amenazas del rival" (comfort picks sumados entre jugadores + maestría del último mes (100k pts ≈ 1 partida, tope 4), bonus flex y presencia pro); en nuestros bans la opción 1 es la amenaza #1
 1. Pulir la recomendación con pools: nuestros picks desde el pool del jugador del rol abierto, predicción del rival por jugador ← ACTUAL
 2. Recomendación v2: candidatos calculados con meta + pools + scouting, la IA elige y explica
 3. Historial de drafts + mejora continua (feedback, resultados, patrón por rival)

@@ -180,7 +180,7 @@ export async function POST(request: Request) {
           avisoMeta,
           scouting: { nosotros: scouting.nosotros.length, rival: scouting.rival.length },
           // la lista calculada va tambien al panel: se ve de donde sale cada ban sin depender de lo que diga la IA
-          amenazas: ctx.amenazas.map((a) => ({ id: a.id, partidas: a.partidas, winrate: a.victorias / a.partidas, jugadores: a.jugadores.length })),
+          amenazas: ctx.amenazas.map((a) => ({ id: a.id, partidas: a.partidas, winrate: a.partidas ? a.victorias / a.partidas : null, jugadores: a.jugadores.length })),
           uso: {
             modelo,
             ms: Date.now() - inicio,

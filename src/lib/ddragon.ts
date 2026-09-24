@@ -3,7 +3,7 @@ import { normalizar, type Champ } from "./champs";
 
 const DDRAGON = "https://ddragon.leagueoflegends.com";
 
-type ChampCrudo = { id: string; name: string; tags: string[] };
+type ChampCrudo = { id: string; key: string; name: string; tags: string[] };
 
 const traerJson = async <T>(url: string, revalidate: number): Promise<T> => {
   const res = await fetch(url, { next: { revalidate } });
@@ -23,7 +23,7 @@ export async function getDataDragon() {
   );
 
   const champs: Champ[] = Object.values(data)
-    .map((c) => ({ id: c.id, nombre: c.name, tags: c.tags }))
+    .map((c) => ({ id: c.id, key: c.key, nombre: c.name, tags: c.tags }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   return { version, champs };

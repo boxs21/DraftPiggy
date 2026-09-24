@@ -1,7 +1,8 @@
 import "server-only";
 
-// LAS: account-v1 y match-v5 van por el cluster regional americas
+// LAS: account-v1 y match-v5 van por el cluster regional americas; la maestria va por la plataforma la2
 const REGIONAL = "https://americas.api.riotgames.com";
+const PLATAFORMA = "https://la2.api.riotgames.com";
 const MAX_REINTENTOS = 3;
 
 export class ErrorRiot extends Error {}
@@ -9,12 +10,12 @@ export class ErrorRiot extends Error {}
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // fetch con la key y respetando el rate limit: si Riot devuelve 429 espero lo que dice Retry-After y reintento
-async function pedir<T>(ruta: string): Promise<T | null> {
+async function pedir<T>(url: string): Promise<T | null> {
   const key = process.env.RIOT_API_KEY;
   if (!key) throw new ErrorRiot("Falta RIOT_API_KEY en .env.local");
 
   for (let intento = 0; ; intento++) {
-    const res = await fetch(`${REGIONAL}${ruta}`, { headers: { "X-Riot-Token": key }, cache: "no-store" });
+    const res = await fetch(url, { headers: { "X-Riot-Token": key }, cache: "no-store" });
     if (res.ok) return res.json();
     if (res.status === 404) return null;
     if (res.status === 401 || res.status === 403) {
@@ -31,13 +32,19 @@ async function pedir<T>(ruta: string): Promise<T | null> {
 export type Cuenta = { puuid: string; gameName: string; tagLine: string };
 
 export const cuentaPorRiotId = (nombre: string, tag: string) =>
-  pedir<Cuenta>(`/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(nombre)}/${encodeURIComponent(tag)}`);
+  pedir<Cuenta>(`${REGIONAL}/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(nombre)}/${encodeURIComponent(tag)}`);
 
 // type=ranked trae solo/duo y flex, que es lo que importa para ver el pool real
 export const idsRanked = async (puuid: string, cantidad: number) =>
-  (await pedir<string[]>(`/lol/match/v5/matches/by-puuid/${puuid}/ids?type=ranked&count=${cantidad}`)) ?? [];
+  (await pedir<string[]>(`${REGIONAL}/lol/match/v5/matches/by-puuid/${puuid}/ids?type=ranked&count=${cantidad}`)) ?? [];
 
 type Participante = { puuid: string; championName: string; teamPosition: string; individualPosition: string; win: boolean };
 export type Partida = { metadata: { matchId: string }; info: { gameCreation: number; queueId: number; participants: Participante[] } };
 
-export const partidaPorId = (id: string) => pedir<Partida>(`/lol/match/v5/matches/${id}`);
+export const partidaPorId = (id: string) => pedir<Partida>(`${REGIONAL}/lol/match/v5/matches/${id}`);
+
+// championId es el numero del champ (el "key" de Data Dragon), lastPlayTime en milisegundos
+export type Maestria = { championId: number; championLevel: number; championPoints: number; lastPlayTime: number };
+
+export const maestriaTop = async (puuid: string, cantidad: number) =>
+  (await pedir<Maestria[]>(`${PLATAFORMA}/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${cantidad}`)) ?? [];

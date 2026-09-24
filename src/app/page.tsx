@@ -115,8 +115,8 @@ export default async function Landing() {
           <Titulo etiqueta="Cómo funciona" titulo="Tres pasos, el mismo flujo de un scrim" />
           <div className="grid gap-4 md:grid-cols-3">
             <Paso numero="1" titulo="Scout" icono={<IconoAgente agente="scout" size={18} />}>
-              Pega el multisearch de op.gg o u.gg de tu equipo y del rival (o el texto del lobby). Se miran las últimas 20 ranked
-              de cada uno en LAS: rol, champs, partidas y winrate. Si alguien juega otro rol en el equipo, lo cambias con un clic.
+              Pega el multisearch de op.gg o u.gg de tu equipo y del rival (o el texto del lobby). Se miran hasta 50 ranked de
+              cada uno en LAS (primero 20 para verlo al instante) más su maestría reciente: rol, pool real, partidas y winrate. Si alguien juega otro rol en el equipo, lo cambias con un clic.
             </Paso>
             <Paso numero="2" titulo="Live draft" icono={<Rayo />}>
               Eliges tu side y vas cargando cada pick y ban mientras pasa: escribes, Enter, listo. Ctrl+Z para deshacer, Ctrl+Y para
@@ -170,9 +170,10 @@ export default async function Landing() {
               El CSV público de 2026 (~70 MB) con todas las partidas de LCK, LEC, LPL, MSI y Worlds: picks y bans en orden de
               draft, rol de cada pick, side, first pick, resultado y parche. Se sincroniza una vez al día, que es cuando se actualiza.
             </Fuente>
-            <Fuente nombre="Riot API" tipo="account-v1 · match-v5 · LAS" color="text-rose-300">
+            <Fuente nombre="Riot API" tipo="account-v1 · match-v5 · mastery-v4" color="text-rose-300">
               <code className="text-neutral-300">account-v1</code> transforma el Riot ID en PUUID y{" "}
-              <code className="text-neutral-300">match-v5</code> trae las últimas 20 ranked (solo/duo y flex) de cada jugador en LAS.
+              <code className="text-neutral-300">match-v5</code> trae hasta 50 ranked (solo/duo y flex) de cada jugador en LAS, y{" "}
+              <code className="text-neutral-300">champion-mastery-v4</code> su maestría (solo la jugada en los últimos 60 días).
               Del link de op.gg o u.gg solo se leen los Riot IDs: no se abre ni se scrapea ninguna página.
             </Fuente>
             <Fuente nombre="Data Dragon" tipo="CDN de Riot" color="text-sky-300">

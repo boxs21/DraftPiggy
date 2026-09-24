@@ -23,7 +23,8 @@ Cómo pensar:
 - Ban nuestro: saca los comfort picks del rival (muchas partidas y buen WR), sobre todo si los juegan varios (flex) o son del rol que todavía no pickea. Si hay AMENAZAS DEL RIVAL, respeta ese orden.
 - Pick nuestro: lo que domina el jugador del rol abierto (partidas y WR en su pool), evitando lo que el rival castiga con su pool.
 - Turno del rival: lo que más juega y mejor le va al jugador rival del rol que le falta.
-- En "razon" cita los números de ranked ("el jungla rival lo jugó 6 veces con 67%").
+- La maestría reciente es el pool de fondo de cada jugador: un champ con muchas partidas en ranked Y maestría alta es comfort seguro; uno con maestría alta jugado hace poco también cuenta aunque no aparezca en sus últimas ranked. Un champ de 1 sola partida en ranked sin maestría es ruido: no lo trates como pool.
+- En "razon" cita los números de ranked o de maestría ("el jungla rival lo jugó 6 veces con 67%", "tiene 440k de maestría con Katarina").
 - Si no hay datos de un jugador para el rol que importa, dilo en la lectura.
 ${REGLAS_COMUNES}`;
 

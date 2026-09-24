@@ -46,31 +46,51 @@ function lineaJugador(j: ResumenJugador, nombre: (id: string) => string, usados:
       return `${nombre(c.id)} ${c.partidas}p ${pct(c.victorias / c.partidas)}${roles}${usados.has(c.id) ? " (ya usado)" : ""}`;
     })
     .join(", ");
-  return `- ${j.rol ?? "rol s/d"} (${j.partidas} ranked): ${champs || "sin partidas"}`;
+  const dias = (fecha: string) => Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000));
+  const maestria = j.maestria
+    .map((m) => `${nombre(m.id)} ${Math.round(m.puntos / 1000)}k pts (jugado hace ${dias(m.ultima)} días)`)
+    .join(", ");
+  return `- ${j.rol ?? "rol s/d"} (${j.partidas} ranked): ${champs || "sin partidas"}${maestria ? ` | maestría reciente: ${maestria}` : ""}`;
 }
 
-// comfort picks del rival calculados, no adivinados por el modelo: partidas sumadas de todos sus jugadores,
-// pesadas por winrate, con bonus si lo juega mas de uno (flex) y si ademas esta fuerte en pro
+// maestria que cuenta como comfort para las amenazas: jugado en el ultimo mes, y cada 100k puntos vale como
+// una partida de ranked (tope 4, para que un main viejo no tape lo que juega hoy)
+const DIAS_MAESTRIA_AMENAZA = 30;
+const PUNTOS_POR_PARTIDA = 100_000;
+const TOPE_MAESTRIA = 4;
+
+// comfort picks del rival calculados, no adivinados por el modelo: partidas de ranked sumadas de todos sus
+// jugadores y pesadas por winrate, mas la maestria reciente; bonus si lo juega mas de uno (flex) y si esta fuerte en pro
 export function amenazasRival(rival: ResumenJugador[], meta: MetaPro | null, usados: Set<string>) {
-  const porChamp = new Map<string, { id: string; partidas: number; victorias: number; jugadores: string[] }>();
+  const porChamp = new Map<string, { id: string; partidas: number; victorias: number; maestria: number; jugadores: string[] }>();
+  const limite = Date.now() - DIAS_MAESTRIA_AMENAZA * 86_400_000;
   for (const j of rival) {
+    const vistos = new Set<string>();
     for (const c of j.champs) {
       if (usados.has(c.id)) continue;
-      const a = porChamp.get(c.id) ?? { id: c.id, partidas: 0, victorias: 0, jugadores: [] };
+      const a = porChamp.get(c.id) ?? { id: c.id, partidas: 0, victorias: 0, maestria: 0, jugadores: [] };
       a.partidas += c.partidas;
       a.victorias += c.victorias;
       a.jugadores.push(`${j.rol ?? "?"} ${c.partidas}p ${pct(c.victorias / c.partidas)}`);
       porChamp.set(c.id, a);
+      vistos.add(c.id);
+    }
+    for (const m of j.maestria) {
+      if (usados.has(m.id) || new Date(m.ultima).getTime() < limite) continue;
+      const a = porChamp.get(m.id) ?? { id: m.id, partidas: 0, victorias: 0, maestria: 0, jugadores: [] };
+      a.maestria += Math.min(TOPE_MAESTRIA, m.puntos / PUNTOS_POR_PARTIDA);
+      if (!vistos.has(m.id)) a.jugadores.push(`${j.rol ?? "?"} maestría ${Math.round(m.puntos / 1000)}k`);
+      porChamp.set(m.id, a);
     }
   }
   return [...porChamp.values()]
     .map((a) => {
-      const wr = a.victorias / a.partidas;
+      const wr = a.partidas ? a.victorias / a.partidas : 0.5;
       const presencia = meta?.champs.get(a.id)?.presencia ?? 0;
-      const puntaje = a.partidas * (0.5 + wr) * (a.jugadores.length > 1 ? 1.3 : 1) * (1 + presencia);
+      const puntaje = (a.partidas * (0.5 + wr) + a.maestria) * (a.jugadores.length > 1 ? 1.3 : 1) * (1 + presencia);
       return { ...a, puntaje, presencia };
     })
-    .filter((a) => a.partidas >= 2)
+    .filter((a) => a.partidas >= 2 || a.maestria >= 1)
     .sort((a, b) => b.puntaje - a.puntaje)
     .slice(0, 6);
 }

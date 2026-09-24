@@ -209,12 +209,13 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
                 {recoVigente.amenazas.map((a) => (
                   <span
                     key={a.id}
-                    title={`${a.partidas} partidas en ranked · ${Math.round(a.winrate * 100)}% WR${a.jugadores > 1 ? ` · lo juegan ${a.jugadores} rivales` : ""}`}
+                    title={`${a.winrate === null ? "Por maestría reciente" : `${a.partidas} partidas en ranked · ${Math.round(a.winrate * 100)}% WR`}${a.jugadores > 1 ? ` · lo juegan ${a.jugadores} rivales` : ""}`}
                     className="flex items-center gap-1 rounded bg-white/[0.04] py-0.5 pr-1.5 pl-0.5"
                   >
                     <IconoChamp version={version} id={a.id} nombre={a.id} size={18} className="rounded-sm" />
                     <span className="tabular-nums">
-                      {a.partidas}p {Math.round(a.winrate * 100)}%{a.jugadores > 1 ? " ×" + a.jugadores : ""}
+                      {a.winrate === null ? "maestría" : `${a.partidas}p ${Math.round(a.winrate * 100)}%`}
+                      {a.jugadores > 1 ? " ×" + a.jugadores : ""}
                     </span>
                   </span>
                 ))}

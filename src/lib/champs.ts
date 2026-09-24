@@ -1,5 +1,6 @@
 export type Champ = {
   id: string; // el de Data Dragon, ej "MonkeyKing"
+  key: string; // el numero que usa la Riot API (maestria), ej "62"
   nombre: string; // el que se ve, ej "Wukong"
   tags: string[];
 };
