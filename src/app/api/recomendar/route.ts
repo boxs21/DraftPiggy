@@ -3,7 +3,9 @@ import { getDataDragon } from "@/lib/ddragon";
 import { ORDEN_DRAFT, TOTAL_ACCIONES, etiquetaAccion, type Side } from "@/lib/draft";
 import { getMetaPro, type MetaPro, type StatChamp } from "@/lib/metaPro";
 import { MODELO_DEFAULT, PRECIOS_MISTRAL, llamarMistral } from "@/lib/mistral";
-import { COOKIE_SESION, sesionValida } from "@/lib/sesion";
+import { resumenesDesdeCache, type ResumenJugador } from "@/lib/scouting";
+import { requestConSesion } from "@/lib/sesion";
+import { esRiotIdValido, MAX_JUGADORES } from "@/lib/riotIds";
 
 type Body = {
   slots: (string | null)[];
@@ -11,7 +13,11 @@ type Body = {
   sideElegido: Side;
   pool?: string;
   modelo?: string;
+  // Riot IDs cargados en la pestaña Scout; los datos se leen de la cache, no se confia en lo que mande el cliente
+  jugadores?: { nosotros: string[]; rival: string[] };
 };
+
+type Scouting = { nosotros: ResumenJugador[]; rival: ResumenJugador[] };
 
 type ChampConRol = { champ: string; rol: string };
 
@@ -75,9 +81,10 @@ Como pensar el draft (usalo, no lo repitas):
 Reglas:
 - Primero completa "rolesNuestros" y "rolesRival" con el rol de cada pick ya hecho de cada lado (solo picks). Usa los roles pro de los datos como guia.
 - Devolve exactamente 3 opciones, de mejor a peor, solo con campeones que existan y que NO esten usados.
-- Si es un pick nuestro: prioriza el pool del equipo cuando tenga sentido y un rol que no tengamos cubierto. Si varios roles estan abiertos, no pongas los 3 en el mismo rol salvo que sea claramente lo mejor.
-- Si es un ban nuestro: pensa que le sirve al rival y que counterea nuestra comp o nuestro pool.
-- Si el turno es del rival: devolve las 3 cosas mas probables que haga el rival. Las razones van desde el punto de vista del RIVAL: sinergia con SUS picks y lo que le sirve contra NOSOTROS, nunca "complementa a" un champ nuestro.
+- Si es un pick nuestro: prioriza el pool del jugador del rol abierto (sus champs de ranked) y un rol que no tengamos cubierto. Si varios roles estan abiertos, no pongas los 3 en el mismo rol salvo que sea claramente lo mejor.
+- Si es un ban nuestro: pensa que le sirve al rival. Si hay scouting del rival, prioriza sus comfort picks (muchas partidas y buen WR) que ademas esten fuertes en pro, sobre todo de los roles que todavia no pickeo.
+- Si el turno es del rival: devolve las 3 cosas mas probables que haga el rival. Si hay scouting, usa el pool del jugador rival del rol que le falta: lo que juega en ranked pesa mas que el meta promedio. Las razones van desde el punto de vista del RIVAL: sinergia con SUS picks y lo que le sirve contra NOSOTROS, nunca "complementa a" un champ nuestro.
+- Cuando uses datos de ranked de un jugador, decilo ("el jungla rival lo jugo 7 veces con 71%").
 - El patron del turno ("En pro, en R2 se pickea: ...") es la señal mas fuerte de que rol viene. Respetalo salvo que ese rol ya este cubierto.
 - "lectura": 1 o 2 oraciones tecnicas sobre como vienen las dos comps (win condition, que le falta a cada una).
 - "razon": maximo 2 oraciones, tecnicas y concretas. Cuando sirva, cita los numeros de los datos pro (presencia, WR, en que parte del draft se pickea). NUNCA uses numeros que no esten en los datos, ni inventes nombres de habilidades. Si no hay datos pro de un champ, decilo.
@@ -99,7 +106,41 @@ function lineaStat(nombre: string, s: StatChamp | undefined) {
 
 const rolPrincipal = (s?: StatChamp) => (s ? Object.entries(s.roles).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined);
 
-function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null) {
+// una linea por jugador scouteado, sin el nombre (no le aporta nada al modelo): rol y sus champs de ranked
+function lineaJugador(j: ResumenJugador, nombre: (id: string) => string, usados: Set<string>) {
+  const champs = j.champs
+    .map((c) => `${nombre(c.id)} ${c.partidas}p ${pct(c.victorias / c.partidas)}${usados.has(c.id) ? " (ya usado)" : ""}`)
+    .join(", ");
+  return `- ${j.rol ?? "rol s/d"} (${j.partidas} ranked): ${champs || "sin partidas"}`;
+}
+
+// comfort picks del rival calculados, no adivinados por el modelo: partidas sumadas de todos sus jugadores,
+// pesadas por winrate, con bonus si lo juega mas de uno (flex) y si ademas esta fuerte en pro
+function amenazasRival(rival: ResumenJugador[], meta: MetaPro | null, usados: Set<string>) {
+  const porChamp = new Map<string, { id: string; partidas: number; victorias: number; jugadores: string[] }>();
+  for (const j of rival) {
+    for (const c of j.champs) {
+      if (usados.has(c.id)) continue;
+      const a = porChamp.get(c.id) ?? { id: c.id, partidas: 0, victorias: 0, jugadores: [] };
+      a.partidas += c.partidas;
+      a.victorias += c.victorias;
+      a.jugadores.push(`${j.rol ?? "?"} ${c.partidas}p ${pct(c.victorias / c.partidas)}`);
+      porChamp.set(c.id, a);
+    }
+  }
+  return [...porChamp.values()]
+    .map((a) => {
+      const wr = a.victorias / a.partidas;
+      const presencia = meta?.champs.get(a.id)?.presencia ?? 0;
+      const puntaje = a.partidas * (0.5 + wr) * (a.jugadores.length > 1 ? 1.3 : 1) * (1 + presencia);
+      return { ...a, puntaje, presencia };
+    })
+    .filter((a) => a.partidas >= 2)
+    .sort((a, b) => b.puntaje - a.puntaje)
+    .slice(0, 6);
+}
+
+function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null, scouting: Scouting) {
   const { slots, turnoActual, sideElegido } = body;
   const champsPorId = new Map(champs.map((c) => [c.id, c]));
   const indice = crearIndice(champs);
@@ -134,8 +175,32 @@ function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null) {
     `Bans red (${sideElegido === "red" ? "NOSOTROS" : "RIVAL"}): ${lista("red", "ban")}`,
     `Picks blue (${sideElegido === "blue" ? "NOSOTROS" : "RIVAL"}): ${lista("blue", "pick")}`,
     `Picks red (${sideElegido === "red" ? "NOSOTROS" : "RIVAL"}): ${lista("red", "pick")}`,
-    `Pool de nuestro equipo: ${body.pool?.trim() || "no cargado"}`,
+    `Pool extra anotado a mano: ${body.pool?.trim() || "ninguno"}`,
   ];
+
+  // lo que juega cada jugador en ranked de LAS (pestaña Scout). Va antes del meta porque sirve aunque no haya datos pro
+  for (const [clave, titulo] of [["nosotros", "NUESTROS jugadores"], ["rival", "Jugadores del RIVAL"]] as const) {
+    if (scouting[clave].length) {
+      partes.push("", `${titulo} (ultimas ranked en LAS):`, ...scouting[clave].map((j) => lineaJugador(j, nombre, usados)));
+    }
+  }
+
+  const amenazas = amenazasRival(scouting.rival, meta, usados);
+  if (amenazas.length) {
+    partes.push(
+      "",
+      "AMENAZAS DEL RIVAL (comfort picks calculados de su ranked, de mayor a menor):",
+      ...amenazas.map(
+        (a) =>
+          `- ${nombre(a.id)}: ${a.jugadores.join(" / ")}${a.jugadores.length > 1 ? " · lo juegan varios, flex" : ""}${meta ? ` · presencia pro ${pct(a.presencia)}` : ""}`,
+      ),
+    );
+    if (accion.tipo === "ban" && esNuestro) {
+      partes.push(
+        `En este ban, la opcion 1 TIENE que ser ${nombre(amenazas[0].id)} (la amenaza #1 del rival). Las otras 2 elegilas entre el resto de AMENAZAS y lo mas fuerte del meta pro.`,
+      );
+    }
+  }
 
   if (!meta) {
     partes.push("", "Datos pro: no disponibles todavia. Razona con criterio general y aclara que no hay datos.");
@@ -180,9 +245,15 @@ function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null) {
     ...candidatos.map((s) => `- ${lineaStat(nombre(s.id), s)}`),
   );
 
-  const poolDisponible = [...idsPool].filter((id) => !usados.has(id));
-  if (poolDisponible.length) {
-    partes.push("", "Pool del equipo disponible (datos pro):", ...poolDisponible.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id))}`));
+  // datos pro de los champs de los pools (anotado + ranked de los dos equipos) que no esten ya en los candidatos
+  const yaListados = new Set(candidatos.map((s) => s.id));
+  const idsPools = new Set([
+    ...idsPool,
+    ...[...scouting.nosotros, ...scouting.rival].flatMap((j) => j.champs.slice(0, 5).map((c) => c.id)),
+  ]);
+  const poolsDisponibles = [...idsPools].filter((id) => !usados.has(id) && !yaListados.has(id));
+  if (poolsDisponibles.length) {
+    partes.push("", "Datos pro de otros champs de los pools:", ...poolsDisponibles.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id))}`));
   }
 
   return partes.join("\n");
@@ -197,13 +268,16 @@ function validarBody(crudo: unknown): Body | null {
   if (b.sideElegido !== "blue" && b.sideElegido !== "red") return null;
   if (b.pool !== undefined && (typeof b.pool !== "string" || b.pool.length > MAX_LARGO_POOL)) return null;
   if (b.modelo !== undefined && typeof b.modelo !== "string") return null;
+  if (b.jugadores !== undefined) {
+    const listaOk = (l: unknown) =>
+      Array.isArray(l) && l.length <= MAX_JUGADORES && l.every((id) => typeof id === "string" && esRiotIdValido(id));
+    if (!listaOk(b.jugadores?.nosotros) || !listaOk(b.jugadores?.rival)) return null;
+  }
   return b as Body;
 }
 
 export async function POST(request: Request) {
-  // el proxy ya lo chequea, pero este endpoint gasta plata asi que lo vuelvo a chequear aca
-  const cookie = request.headers.get("cookie")?.match(new RegExp(`${COOKIE_SESION}=([^;]+)`))?.[1];
-  if (!sesionValida(cookie)) return Response.json({ error: "No autorizado" }, { status: 401 });
+  if (!requestConSesion(request)) return Response.json({ error: "No autorizado" }, { status: 401 });
 
   const body = validarBody(await request.json().catch(() => null));
   if (!body) return Response.json({ error: "Pedido invalido" }, { status: 400 });
@@ -213,6 +287,7 @@ export async function POST(request: Request) {
   const { version, champs } = await getDataDragon();
   const indice = crearIndice(champs);
   const usados = new Set(body.slots.slice(0, body.turnoActual));
+  const usadosIds = new Set(body.slots.slice(0, body.turnoActual).filter((id): id is string => !!id));
 
   // si Supabase no esta configurado o esta vacio, igual recomienda pero avisando que no hay datos pro
   let meta: MetaPro | null = null;
@@ -224,12 +299,23 @@ export async function POST(request: Request) {
     avisoMeta = e instanceof Error ? e.message : "No se pudo leer el meta pro";
   }
 
+  // el scouting ya se hizo en la pestaña Scout: aca solo leo la cache, sin gastar requests de Riot
+  const scouting: Scouting = { nosotros: [], rival: [] };
+  try {
+    [scouting.nosotros, scouting.rival] = await Promise.all([
+      resumenesDesdeCache(body.jugadores?.nosotros ?? []),
+      resumenesDesdeCache(body.jugadores?.rival ?? []),
+    ]);
+  } catch {
+    // si falla la cache recomiendo igual, sin scouting
+  }
+
   try {
     const { resultado, uso } = await llamarMistral<RespuestaIA>({
       modelo,
       mensajes: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: armarContexto(body, champs, meta) },
+        { role: "user", content: armarContexto(body, champs, meta, scouting) },
       ],
       schema: SCHEMA,
       nombreSchema: "recomendacion_draft",
@@ -268,6 +354,14 @@ export async function POST(request: Request) {
         ? { parchesPorLiga: meta.parchesPorLiga, partidasPorLiga: meta.partidasPorLiga, muestraChica: meta.muestraChica }
         : null,
       avisoMeta,
+      scouting: { nosotros: scouting.nosotros.length, rival: scouting.rival.length },
+      // la lista calculada va tambien al panel: se ve de donde sale cada ban sin depender de lo que diga la IA
+      amenazas: amenazasRival(scouting.rival, meta, usadosIds).map((a) => ({
+        id: a.id,
+        partidas: a.partidas,
+        winrate: a.victorias / a.partidas,
+        jugadores: a.jugadores.length,
+      })),
       uso,
     });
   } catch (e) {

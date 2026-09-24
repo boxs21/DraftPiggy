@@ -16,6 +16,7 @@ type Reco = {
   opciones: Opcion[];
   meta: { parchesPorLiga: Record<string, string[]>; partidasPorLiga: Record<string, number>; muestraChica: boolean } | null;
   avisoMeta: string | null;
+  amenazas: { id: string; partidas: number; winrate: number; jugadores: number }[];
   uso: { modelo: string; ms: number; tokensEntrada: number; tokensSalida: number; costoUsd: number };
 };
 
@@ -25,6 +26,7 @@ type Props = {
   sideElegido: Side;
   version: string;
   terminado: boolean;
+  jugadores: { nosotros: string[]; rival: string[] };
   onElegir: (id: string) => void;
 };
 
@@ -35,7 +37,7 @@ const MODELOS = [
 
 const KEY_POOL = "draft.poolRapido";
 
-export default function PanelIA({ slots, turnoActual, sideElegido, version, terminado, onElegir }: Props) {
+export default function PanelIA({ slots, turnoActual, sideElegido, version, terminado, jugadores, onElegir }: Props) {
   const [modelo, setModelo] = useState(MODELOS[0].id);
   const [reco, setReco] = useState<Reco | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -57,7 +59,7 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
       const res = await fetch("/api/recomendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slots, turnoActual, sideElegido, pool: poolRef.current?.value, modelo }),
+        body: JSON.stringify({ slots, turnoActual, sideElegido, pool: poolRef.current?.value, modelo, jugadores }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
@@ -150,6 +152,24 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
               </li>
             ))}
           </ol>
+          {/* comfort picks del rival calculados del scouting: sirven de un vistazo para banear */}
+          {recoVigente.amenazas.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-neutral-500">
+              <span className="uppercase tracking-widest">Amenazas rival</span>
+              {recoVigente.amenazas.map((a) => (
+                <span
+                  key={a.id}
+                  title={`${a.partidas} partidas en ranked · ${Math.round(a.winrate * 100)}% WR${a.jugadores > 1 ? ` · lo juegan ${a.jugadores} rivales` : ""}`}
+                  className="flex items-center gap-1 rounded bg-white/[0.04] py-0.5 pr-1.5 pl-0.5"
+                >
+                  <IconoChamp version={version} id={a.id} nombre={a.id} size={18} className="rounded-sm" />
+                  <span className="tabular-nums">
+                    {a.partidas}p {Math.round(a.winrate * 100)}%{a.jugadores > 1 ? " ×" + a.jugadores : ""}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
           {/* de donde salen los numeros: si no hay datos pro la reco es de memoria y conviene saberlo */}
           {recoVigente.meta ? (
             <p className={`text-[10px] ${recoVigente.meta.muestraChica ? "text-amber-400/80" : "text-neutral-600"}`}>

@@ -16,7 +16,7 @@ export default function ElegirSide({ onElegir }: { onElegir: (side: Side) => voi
   }, [onElegir]);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-12 px-6">
+    <div className="flex flex-1 flex-col items-center justify-center gap-12 px-6">
       <div className="flex flex-col items-center gap-3">
         <h1 className="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500">Draft</h1>
         <p className="text-3xl font-extralight text-neutral-100">¿De qué lado estás?</p>

@@ -38,8 +38,8 @@ Todo tiene que ser gratis salvo Mistral. Vercel, Supabase (free tier), Riot API,
 - **Leaguepedia**: NO usar sin login. Anónimo te bloquea como una hora después de 2-3 queries. Si algún día hace falta, con bot password de Fandom.
 - **Parches**: Riot nombra los parches por año (`26.17`) pero Data Dragon y Oracle's Elixir usan la numeración vieja (`16.17`). Se guarda y se muestra en formato Riot: convertir siempre con `parcheDesdeVersion` (`src/lib/champs.ts`). Los pros van 1-3 parches atrás del live, y cada liga en uno distinto (LCK suele ir uno atrás).
 - **First pick en 2026**: ya no va atado al side. En `acciones_pro`, `side` es la posición en el orden de draft (blue = el que pickeó primero) y `partidas_pro.primer_pick` dice de qué side del mapa era.
-- **Riot API** (scouting de los rivales): servidor LAS = plataforma `la2`, cluster regional `americas` para `account-v1` y `match-v5`. La dev key vence cada 24h; para uso fijo, pedir la personal key.
-- op.gg / u.gg: no tienen API pública, NO scrapear. Todo lo que muestran sale de la Riot API.
+- **Riot API** (scouting): servidor LAS = plataforma `la2`, cluster regional `americas` para `account-v1` y `match-v5`. Límites de la key: 20 req/s y 100 cada 2 min (`riot.ts` respeta `Retry-After`). La dev key vence cada 24 h; para producción, la personal key.
+- op.gg / u.gg: no tienen API pública, NO scrapear. El usuario pega el link (multisearch o perfil) y `riotIds.ts` solo lee los Riot IDs de la URL; los datos salen de la Riot API.
 - gol.gg: NO usar, no tiene API.
 - Oracle's Elixir: solo si hacen falta stats finas; para picks/bans alcanza Leaguepedia.
 
@@ -73,7 +73,9 @@ Picks fase 2: R4 | B4 B5 | R5
 - [x] Tablero: side, orden de torneo, buscador, picks/bans, Ctrl+Z, reiniciar
 - [x] Prueba de IA: botón "Recomendar con IA" con Mistral + pool rápido (texto)
 - [x] Meta pro (LCK/LEC/LPL/Worlds) desde Oracle's Elixir en Supabase, y la IA razonando con esos datos
-1. Pools por jugador (5 jugadores con rol y champs) + scouting rival con Riot API (LAS). Sumar tendencias por equipo/jugador: los picks puntuales (ej. Yunara de un equipo) no salen del meta promedio ← ACTUAL
+- [x] Login con contraseña, pantalla de side, deploy en Vercel (repo `boxs21/DraftPiggy`)
+- [x] Pestañas **Scout** y **Live draft**. Scout: pegar op.gg/u.gg de mi equipo y del rival → últimas 20 ranked de cada uno (cache en Supabase). La IA usa esos pools y el código calcula las "amenazas del rival" (comfort picks sumados entre jugadores, bonus flex y presencia pro); en nuestros bans la opción 1 es la amenaza #1
+1. Pulir la recomendación con pools: nuestros picks desde el pool del jugador del rol abierto, predicción del rival por jugador ← ACTUAL
 2. Recomendación v2: candidatos calculados con meta + pools + scouting, la IA elige y explica
 3. Historial de drafts + mejora continua (feedback, resultados, patrón por rival)
 4. Lectura de pantalla o screenshot con Small 4 (visión) que llena el tablero
@@ -89,7 +91,11 @@ Picks fase 2: R4 | B4 B5 | R5
 - `src/lib/metaPro.ts`: elige parches por liga, pondera LCK/LEC/LPL y calcula stats por champ y por turno
 - `src/app/api/cron/sync-meta/route.ts`: sync diario del meta pro (protegido con `CRON_SECRET`)
 - `src/app/api/recomendar/route.ts`: prompt, schema y validación de la recomendación
-- `src/components/`: `Tablero`, `ColumnaEquipo`, `Buscador`, `PanelIA`, `IconoChamp`
+- `src/lib/riot.ts`, `src/lib/scouting.ts`: Riot API (account-v1, match-v5) y resumen por jugador con cache en `jugadores` / `partidas_jugador`
+- `src/lib/riotIds.ts`: saca Riot IDs de links de op.gg/u.gg o texto del lobby (sin abrir la página)
+- `src/lib/sesion.ts` + `src/proxy.ts`: login (`APP_PASSWORD`, cookie HMAC), cron con `CRON_SECRET`
+- `src/app/api/scouting/route.ts`: scoutea un jugador por llamada
+- `src/components/`: `App` (pestañas y estado del draft), `Scout`, `usePlanteles` (planteles en localStorage + cola de scouting), `Tablero`, `ElegirSide`, `LineaDeTiempo`, `ColumnaEquipo`, `Buscador`, `PanelIA`, `IconoChamp`
 
 ## Estilo de código
 - Variables y funciones en camelCase. Nombres del dominio en español cuando suene natural (`turnoActual`, `sideElegido`, `champsBaneados`); lo técnico genérico en inglés.

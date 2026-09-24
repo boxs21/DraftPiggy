@@ -25,6 +25,12 @@ export function sesionValida(valorCookie: string | undefined) {
   return !!esperado && !!valorCookie && igualesSeguro(valorCookie, esperado);
 }
 
+// para los route handlers que gastan plata: vuelven a chequear la sesion aunque el proxy ya lo haya hecho
+export function requestConSesion(request: Request) {
+  const cookie = request.headers.get("cookie")?.match(new RegExp(`${COOKIE_SESION}=([^;]+)`))?.[1];
+  return sesionValida(cookie);
+}
+
 export function claveCorrecta(intento: string) {
   const clave = process.env.APP_PASSWORD;
   return !!clave && igualesSeguro(firmar(intento), firmar(clave));

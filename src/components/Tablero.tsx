@@ -1,15 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import Buscador from "./Buscador";
 import ColumnaEquipo, { COLOR_SIDE } from "./ColumnaEquipo";
 import ElegirSide from "./ElegirSide";
 import LineaDeTiempo from "./LineaDeTiempo";
 import PanelIA from "./PanelIA";
-import { parcheDesdeVersion, type Champ } from "@/lib/champs";
+import type { Champ } from "@/lib/champs";
 import { DRAFT_VACIO, ORDEN_DRAFT, TOTAL_ACCIONES, etiquetaAccion, type EstadoDraft, type Side } from "@/lib/draft";
 
-type Props = { champs: Champ[]; version: string };
+// el estado vive en App para que el draft no se pierda al pasar por la pestaña Scout
+type Props = {
+  champs: Champ[];
+  champsPorId: Map<string, Champ>;
+  version: string;
+  sideElegido: Side | null; // null = todavia no eligio, se muestra "¿de que lado estas?"
+  setSideElegido: (side: Side | null) => void;
+  draft: EstadoDraft;
+  setDraft: Dispatch<SetStateAction<EstadoDraft>>;
+  jugadores: { nosotros: string[]; rival: string[] };
+};
 
 // hasta que turno se puede avanzar: lo jugado mas lo deshecho que sigue guardado en el array
 const calcularHastaDonde = (slots: (string | null)[]) => {
@@ -17,10 +27,7 @@ const calcularHastaDonde = (slots: (string | null)[]) => {
   return primerVacio === -1 ? TOTAL_ACCIONES : primerVacio;
 };
 
-export default function Tablero({ champs, version }: Props) {
-  // null = todavia no eligio, se muestra la pantalla de "¿de que lado estas?"
-  const [sideElegido, setSideElegido] = useState<Side | null>(null);
-  const [draft, setDraft] = useState<EstadoDraft>(DRAFT_VACIO);
+export default function Tablero({ champs, champsPorId, version, sideElegido, setSideElegido, draft, setDraft, jugadores }: Props) {
   const { slots, turnoActual } = draft;
 
   const accionActual = ORDEN_DRAFT[turnoActual]; // undefined cuando ya se jugaron las 20
@@ -30,7 +37,6 @@ export default function Tablero({ champs, version }: Props) {
   const puedeVolver = turnoActual > 0;
   const puedeAvanzar = turnoActual < hastaDonde;
 
-  const champsPorId = useMemo(() => new Map(champs.map((c) => [c.id, c])), [champs]);
   const champsUsados = useMemo(
     () => new Set(slots.slice(0, turnoActual).filter((id): id is string => id !== null)),
     [slots, turnoActual],
@@ -77,19 +83,21 @@ export default function Tablero({ champs, version }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  const parche = parcheDesdeVersion(version);
+  }, [setDraft]);
 
   if (!sideElegido) return <ElegirSide onElegir={setSideElegido} />;
 
+  // aviso de cuanto scouting tiene la IA, asi sabes si te falto cargar algo en Scout
+  const nScout = jugadores.nosotros.length + jugadores.rival.length;
+
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-[1400px] flex-col gap-7 px-10 py-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col gap-7 px-10 py-6">
       <header className="flex items-center justify-between">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-200">Draft</h1>
-          <span className="text-[11px] text-neutral-600">Parche {parche}</span>
-        </div>
+        <p className={`text-xs ${nScout ? "text-neutral-500" : "text-amber-400/80"}`}>
+          {nScout
+            ? `Scout: ${jugadores.nosotros.length} de mi equipo · ${jugadores.rival.length} rivales`
+            : "Sin scouting: cargá los equipos en la pestaña Scout"}
+        </p>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center rounded-lg border border-white/10 p-0.5 text-xs">
@@ -160,6 +168,7 @@ export default function Tablero({ champs, version }: Props) {
             sideElegido={sideElegido}
             version={version}
             terminado={terminado}
+            jugadores={jugadores}
             onElegir={confirmar}
           />
 

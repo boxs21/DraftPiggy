@@ -1,0 +1,23 @@
+import { esRiotIdValido } from "@/lib/riotIds";
+import { scoutearJugador } from "@/lib/scouting";
+import { requestConSesion } from "@/lib/sesion";
+
+// si Riot nos frena por rate limit la llamada espera, asi que le doy margen
+export const maxDuration = 300;
+
+// scoutea UN jugador por llamada; el cliente va de a uno para mostrar el avance
+export async function POST(request: Request) {
+  if (!requestConSesion(request)) return Response.json({ error: "No autorizado" }, { status: 401 });
+
+  const body = await request.json().catch(() => null);
+  const riotId = typeof body?.riotId === "string" ? body.riotId.trim() : "";
+  if (!esRiotIdValido(riotId)) return Response.json({ error: "Riot ID inválido" }, { status: 400 });
+
+  try {
+    const resumen = await scoutearJugador(riotId);
+    if (!resumen) return Response.json({ error: "No existe en LAS" }, { status: 404 });
+    return Response.json(resumen);
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : "Error desconocido" }, { status: 502 });
+  }
+}
