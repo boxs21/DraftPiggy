@@ -1,4 +1,4 @@
-# LoL Draft Tool
+# Draft Piggy
 
 @AGENTS.md
 
@@ -41,7 +41,6 @@ Todo tiene que ser gratis salvo Mistral. Vercel, Supabase (free tier), Riot API,
 - **Riot API** (scouting): servidor LAS = plataforma `la2`, cluster regional `americas` para `account-v1` y `match-v5`. Límites de la key: 20 req/s y 100 cada 2 min (`riot.ts` respeta `Retry-After`). La dev key vence cada 24 h; para producción, la personal key.
 - op.gg / u.gg: no tienen API pública, NO scrapear. El usuario pega el link (multisearch o perfil) y `riotIds.ts` solo lee los Riot IDs de la URL; los datos salen de la Riot API.
 - gol.gg: NO usar, no tiene API.
-- Oracle's Elixir: solo si hacen falta stats finas; para picks/bans alcanza Leaguepedia.
 
 ## Meta pro
 - Ligas: LCK 50%, LEC 25%, LPL 25% (MSI y Worlds suman si caen en el parche). Los pesos van en una constante.
@@ -58,7 +57,7 @@ Picks fase 2: R4 | B4 B5 | R5
 ```
 20 acciones en total. El estado del draft se modela como un array de 20 slots con un índice de turno actual. Deshacer = volver el índice atrás.
 
-## Cómo razona la IA
+## Cómo razona la IA (en la UI se llama **KuAi**)
 - El código calcula los números (meta, pools, scouting) y arma los candidatos. La IA elige y explica. Nunca inventa stats, winrates ni nombres de habilidades.
 - Todo lo que devuelve se valida contra Data Dragon: champ que no existe, ya usado o que repite un rol cubierto se marca y no se puede elegir.
 - Antes de recomendar tiene que fijar el rol de cada pick ya hecho de los dos lados (si no, recomienda dos junglas).

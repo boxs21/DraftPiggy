@@ -89,7 +89,7 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
         >
           {cargando ? (
             <>
-              <LogoPiggy size={16} className="animate-flotar" /> Pensando…
+              <LogoPiggy size={16} className="animate-flotar" /> KuAi pensando…
             </>
           ) : (
             <>
@@ -97,7 +97,7 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                 <path d="M12 2l2.2 6.3L20.5 10.5 14.2 12.7 12 19l-2.2-6.3L3.5 10.5l6.3-2.2L12 2Z" />
               </svg>
-              Recomendar con IA
+              Preguntar a KuAi
             </>
           )}
         </button>
@@ -133,7 +133,8 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
       {recoVigente && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-neutral-400">
-            <span className="text-neutral-500">{recoVigente.esNuestro ? "Para vos" : "Probable del rival"} · </span>
+            <span className="font-semibold text-cyan-300">KuAi</span>
+            <span className="text-neutral-500"> · {recoVigente.esNuestro ? "para vos" : "probable del rival"} · </span>
             {recoVigente.lectura}
           </p>
           {/* lo muestro para ver si la IA entendio bien quien juega que, si esto esta mal todo lo demas tambien */}
