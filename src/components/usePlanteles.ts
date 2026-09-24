@@ -32,7 +32,7 @@ function leerGuardado(): Planteles {
     if (!crudo) return VACIO;
     const p = JSON.parse(crudo) as Planteles;
     // si quedo algo a medio cargar de la vez anterior lo marco para reintentar
-    const arreglar = (l: Jugador[]) => (l ?? []).map((j) => (j.estado === "listo" || j.estado === "error" ? j : { ...j, estado: "error" as const, error: "Sin terminar, actualizá" }));
+    const arreglar = (l: Jugador[]) => (l ?? []).map((j) => (j.estado === "listo" || j.estado === "error" ? j : { ...j, estado: "error" as const, error: "Sin terminar, actualiza" }));
     return { nosotros: arreglar(p.nosotros), rival: arreglar(p.rival) };
   } catch {
     return VACIO;

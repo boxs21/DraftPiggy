@@ -23,8 +23,8 @@ export default function Scout({ champsPorId, version, plantel, onIrAlDraft }: Pr
         <div>
           <p className="text-4xl font-extralight text-neutral-100">Scout</p>
           <p className="mt-2 max-w-xl text-sm text-neutral-500">
-            Pegá el link de op.gg o u.gg (multisearch o perfil) o los Riot IDs de cada equipo. Se miran sus últimas ranked
-            en LAS. La primera vez tarda un par de minutos por el límite de Riot; después se actualiza al toque.
+            Pega el link de op.gg o u.gg (multisearch o perfil) o los Riot IDs de cada equipo. Se revisan sus últimas ranked
+            en LAS. La primera vez tarda un par de minutos por el límite de Riot; después se actualiza al instante.
           </p>
         </div>
         <button
@@ -107,7 +107,7 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
           }}
           onPaste={onPaste}
           onKeyDown={onKeyDown}
-          placeholder="Pegá op.gg / u.gg o Nombre#TAG"
+          placeholder="Pega op.gg / u.gg o Nombre#TAG"
           spellCheck={false}
           className="rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-600 focus:border-cyan-400/70 focus:shadow-[0_0_0_4px_rgba(34,211,238,0.08)]"
         />
@@ -119,7 +119,7 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
       {jugadores.length === 0 ? (
         <div className="relative flex h-44 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 text-sm text-neutral-600">
           <LogoPiggy size={32} className="text-neutral-700" />
-          Pegá un link para empezar
+          Pega un link para empezar
         </div>
       ) : (
         <ol className="relative flex flex-col gap-2">
@@ -145,7 +145,7 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
         <select
           value={rolDe(j) ?? ""}
           onChange={(e) => plantel.asignarRol(equipo, j.riotId, e.target.value)}
-          title={j.rol ? `En ranked juega más ${ETIQUETA_ROL[j.rol]}. Cambialo si en el equipo juega otro rol` : "Elegí el rol que juega en el equipo"}
+          title={j.rol ? `En ranked juega más ${ETIQUETA_ROL[j.rol]}. Cámbialo si en el equipo juega otro rol` : "Elige el rol que juega en el equipo"}
           className={`w-14 cursor-pointer appearance-none rounded py-0.5 text-center text-[10px] font-semibold tracking-wider outline-none transition hover:bg-white/10 ${
             j.rolAsignado ? "bg-cyan-400/15 text-cyan-300" : "bg-white/[0.06] text-neutral-400"
           }`}

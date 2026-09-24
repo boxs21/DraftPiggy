@@ -134,7 +134,7 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
         <div className="flex flex-col gap-2">
           <p className="text-xs text-neutral-400">
             <span className="font-semibold text-cyan-300">KuAi</span>
-            <span className="text-neutral-500"> · {recoVigente.esNuestro ? "para vos" : "probable del rival"} · </span>
+            <span className="text-neutral-500"> · {recoVigente.esNuestro ? "para ti" : "probable del rival"} · </span>
             {recoVigente.lectura}
           </p>
           {/* lo muestro para ver si la IA entendio bien quien juega que, si esto esta mal todo lo demas tambien */}

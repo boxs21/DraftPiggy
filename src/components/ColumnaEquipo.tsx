@@ -31,7 +31,7 @@ export default function ColumnaEquipo({ side, esMio, version, champsPorId, slots
         </h2>
         {esMio && (
           <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest text-cyan-300">
-            vos
+            tú
           </span>
         )}
       </header>

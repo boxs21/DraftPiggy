@@ -24,7 +24,7 @@ export default function ElegirSide({ onElegir }: { onElegir: (side: Side) => voi
       <div className="flex flex-col items-center gap-4">
         <LogoPiggy size={44} className="animate-flotar text-cyan-300/80" />
         <p className="text-3xl font-extralight text-neutral-100">¿De qué lado estás?</p>
-        <p className="text-sm text-neutral-500">Elegí tu side para arrancar el draft</p>
+        <p className="text-sm text-neutral-500">Elige tu side para empezar el draft</p>
       </div>
 
       <div className="flex gap-5">

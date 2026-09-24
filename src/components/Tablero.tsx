@@ -97,7 +97,7 @@ export default function Tablero({ champs, champsPorId, version, sideElegido, set
         <p className={`text-xs ${nScout ? "text-neutral-500" : "text-amber-400/80"}`}>
           {nScout
             ? `Scout: ${jugadores.nosotros.length} de mi equipo · ${jugadores.rival.length} rivales`
-            : "Sin scouting: cargá los equipos en la pestaña Scout"}
+            : "Sin scouting: carga los equipos en la pestaña Scout"}
         </p>
 
         <div className="flex items-center gap-3">

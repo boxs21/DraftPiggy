@@ -100,6 +100,6 @@ Picks fase 2: R4 | B4 B5 | R5
 - Variables y funciones en camelCase. Nombres del dominio en español cuando suene natural (`turnoActual`, `sideElegido`, `champsBaneados`); lo técnico genérico en inglés.
 - Constantes de config/colores en SCREAMING_CASE.
 - Comentarios en español, casuales, que expliquen el porqué y no el qué. Nada de JSDoc formal.
-- Textos de la UI en español.
+- Textos de la UI y respuestas de KuAi en español latino neutro, tuteando (tú: "pega", "elige", "para ti"). Nada de voseo ("pegá", "elegí", "vos") ni modismos argentinos ("al toque").
 - Estética: dark minimalista, acentos cyan, mucho espacio negativo. Marca **Draft Piggy**: logo de chanchito de línea (`components/Logo.tsx`, favicon en `app/icon.svg`). Fondo con brillo cian arriba y los colores de cada side abajo, grilla finita, animaciones suaves (`animate-aparecer`, `animate-revelar`, `animate-flotar` en `globals.css`). Botón principal = cian lleno; blue = sky, red = rose.
 - Componentes chicos y directos, sin sobre-abstraer.
