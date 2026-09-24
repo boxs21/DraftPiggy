@@ -1,264 +1,31 @@
-import { crearIndice, normalizar, parcheDesdeVersion, type Champ } from "@/lib/champs";
+import { parcheDesdeVersion } from "@/lib/champs";
 import { getDataDragon } from "@/lib/ddragon";
-import { ORDEN_DRAFT, TOTAL_ACCIONES, etiquetaAccion, type Side } from "@/lib/draft";
-import { getMetaPro, type MetaPro, type StatChamp } from "@/lib/metaPro";
+import { TOTAL_ACCIONES } from "@/lib/draft";
+import {
+  SCHEMA_AGENTE,
+  SCHEMA_PRO,
+  SYSTEM_CONSENSO,
+  SYSTEM_PRO,
+  SYSTEM_SCOUT,
+  contextoConsenso,
+  origenDe,
+  revisarOpciones,
+  type RespuestaAgente,
+  type RespuestaPro,
+} from "@/lib/kuai/agentes";
+import { ROLES, armarContextos, type Body, type Scouting } from "@/lib/kuai/contexto";
+import type { AgenteVista, EventoKuai, Final, OpcionVista, Origen } from "@/lib/kuai/tipos";
+import { getMetaPro, type MetaPro } from "@/lib/metaPro";
 import { MODELO_DEFAULT, PRECIOS_MISTRAL, llamarMistral } from "@/lib/mistral";
-import { resumenesDesdeCache, type ResumenJugador } from "@/lib/scouting";
+import { esRiotIdValido, MAX_JUGADORES, normalizarRiotId, type JugadorDraft } from "@/lib/riotIds";
+import { resumenesDesdeCache } from "@/lib/scouting";
 import { requestConSesion } from "@/lib/sesion";
-import { esRiotIdValido, MAX_JUGADORES, normalizarRiotId, type JugadorDraft, type JugadoresDraft } from "@/lib/riotIds";
 
-type Body = {
-  slots: (string | null)[];
-  turnoActual: number;
-  sideElegido: Side;
-  pool?: string;
-  modelo?: string;
-  // Riot IDs cargados en la pestaña Scout; los datos se leen de la cache, no se confia en lo que mande el cliente
-  jugadores?: JugadoresDraft;
-};
+// 3 llamadas a Mistral (2 en paralelo + el consenso), le doy margen
+export const maxDuration = 60;
 
-type Scouting = { nosotros: ResumenJugador[]; rival: ResumenJugador[] };
-
-type ChampConRol = { champ: string; rol: string };
-
-type RespuestaIA = {
-  rolesNuestros: ChampConRol[];
-  rolesRival: ChampConRol[];
-  lectura: string;
-  opciones: (ChampConRol & { razon: string })[];
-};
-
-const ROLES = ["top", "jungla", "mid", "adc", "support"];
-const MAX_CANDIDATOS = 25;
 const MAX_LARGO_POOL = 1500;
-
-const LISTA_ROLES = {
-  type: "array",
-  items: {
-    type: "object",
-    additionalProperties: false,
-    required: ["champ", "rol"],
-    properties: { champ: { type: "string" }, rol: { type: "string", enum: ROLES } },
-  },
-};
-
-// el orden importa: primero lo obligo a fijar el rol de cada pick hecho y despues recomienda,
-// sino se olvida que el jungla ya esta y te tira otro jungla
-const SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["rolesNuestros", "rolesRival", "lectura", "opciones"],
-  properties: {
-    rolesNuestros: LISTA_ROLES,
-    rolesRival: LISTA_ROLES,
-    lectura: { type: "string" },
-    opciones: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["champ", "rol", "razon"],
-        properties: {
-          champ: { type: "string" },
-          rol: { type: "string", enum: ROLES },
-          razon: { type: "string" },
-        },
-      },
-    },
-  },
-};
-
-const SYSTEM = `Eres KuAi, analista de draft de League of Legends con criterio de pro play (LCK, LEC, LPL). Ayudas a quien draftea en un equipo amateur de scrims (servidor LAS). El draft es en orden de torneo (20 acciones).
-
-Cómo pensar el draft (úsalo, no lo repitas):
-- Prioridad: en picks tempranos van champs blind-safe, de alta presencia pro, o flex que esconden el rol. Los champs que se counterean facil se guardan para fase 2.
-- Flex: un champ que en pro se juega en 2 roles vale mas temprano porque el rival no sabe donde va.
-- Counterpick: en R5/B4-B5 aprovecha que el rival ya mostro su comp. Piensa en el matchup de línea y lo que le falta a la comp rival.
-- Comp: identifica la win condition (engage/teamfight, pick, poke, split push, scaling, early/snowball), la fuente de engage, el frontline, el peel y el balance de daño AP/AD. Nombra los power spikes cuando importen.
-- Bans: en fase 1, lo mas presente del meta o lo que mas le sirve al rival. En fase 2, bans dirigidos: lo que completa la comp rival o counterea directo nuestros picks.
-- Side: blue tiene el primer pick, red tiene el ultimo counter (R5).
-
-Reglas:
-- Primero completa "rolesNuestros" y "rolesRival" con el rol de cada pick ya hecho de cada lado (solo picks). Usa los roles pro de los datos como guia.
-- Devuelve exactamente 5 opciones, de mejor a peor, solo con campeones que existan y que NO esten usados.
-- ROLES: un champ solo va en un rol que aparezca en sus "roles pro" de los datos (se jugo ahi al menos 2 veces en pro este año). Nunca inventes un rol: si un champ es solo top, no lo pongas de jungla. En un ban, el rol es donde ese champ se juega.
-- Si es un pick nuestro: prioriza el pool del jugador del rol abierto (sus champs de ranked) y un rol que no tengamos cubierto. Si varios roles estan abiertos, no pongas los 3 en el mismo rol salvo que sea claramente lo mejor.
-- Si es un ban nuestro: piensa qué le sirve al rival. Si hay scouting del rival, prioriza sus comfort picks (muchas partidas y buen WR) que ademas esten fuertes en pro, sobre todo de los roles que todavia no pickeo.
-- Si el turno es del rival: devuelve las 3 cosas mas probables que haga el rival. Si hay scouting, usa el pool del jugador rival del rol que le falta: lo que juega en ranked pesa mas que el meta promedio. Las razones van desde el punto de vista del RIVAL: sinergia con SUS picks y lo que le sirve contra NOSOTROS, nunca "complementa a" un champ nuestro.
-- Cuando uses datos de ranked de un jugador, dilo ("el jungla rival lo jugo 7 veces con 71%").
-- El patron del turno ("En pro, en R2 se pickea: ...") es la señal mas fuerte de que rol viene. Respétalo salvo que ese rol ya esté cubierto.
-- "lectura": 1 o 2 oraciones tecnicas sobre como vienen las dos comps (win condition, que le falta a cada una).
-- "razon": maximo 2 oraciones, tecnicas y concretas. Cuando sirva, cita los numeros de los datos pro (presencia, WR, en que parte del draft se pickea). NUNCA uses numeros que no esten en los datos, ni inventes nombres de habilidades. Si no hay datos pro de un champ, dilo.
-- Idioma: español latino neutro, tuteando (tú). Nada de voseo ("vos", "tenés", "pensá") ni modismos argentinos.`;
-
-const pct = (x: number) => `${Math.round(x * 100)}%`;
-
-// una linea compacta por champ con lo que dicen los pros, para que el modelo razone con numeros y no de memoria
-function lineaStat(nombre: string, s: StatChamp | undefined, rolesPro: Record<string, number> | undefined) {
-  // los roles salen de todo el año (minimo 2 partidas), no solo del parche: es lo que decide donde se puede recomendar
-  const roles = Object.entries(rolesPro ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([r, n]) => `${r} ${n}p`)
-    .join(", ");
-  if (!s) return `${nombre}: roles pro ${roles || "NINGUNO (no recomendar)"} | sin partidas en el parche`;
-  const wr = s.winrate === null ? "WR s/d" : `WR ${pct(s.winrate)} (${s.picks} picks)`;
-  return `${nombre}: roles pro ${roles || "NINGUNO (no recomendar)"} | presencia ${pct(s.presencia)} (pick ${pct(s.pickRate)}, ban ${pct(s.banRate)}) | ${wr} | pick temprano ${pct(s.temprano)}, fase 2 ${pct(s.fase2)}`;
-}
-
-const rolPrincipal = (s?: StatChamp) => (s ? Object.entries(s.roles).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined);
-
-// una linea por jugador scouteado, sin el nombre (no le aporta nada al modelo): rol y sus champs de ranked
-function lineaJugador(j: ResumenJugador, nombre: (id: string) => string, usados: Set<string>) {
-  const champs = j.champs
-    .map((c) => `${nombre(c.id)} ${c.partidas}p ${pct(c.victorias / c.partidas)}${usados.has(c.id) ? " (ya usado)" : ""}`)
-    .join(", ");
-  return `- ${j.rol ?? "rol s/d"} (${j.partidas} ranked): ${champs || "sin partidas"}`;
-}
-
-// comfort picks del rival calculados, no adivinados por el modelo: partidas sumadas de todos sus jugadores,
-// pesadas por winrate, con bonus si lo juega mas de uno (flex) y si ademas esta fuerte en pro
-function amenazasRival(rival: ResumenJugador[], meta: MetaPro | null, usados: Set<string>) {
-  const porChamp = new Map<string, { id: string; partidas: number; victorias: number; jugadores: string[] }>();
-  for (const j of rival) {
-    for (const c of j.champs) {
-      if (usados.has(c.id)) continue;
-      const a = porChamp.get(c.id) ?? { id: c.id, partidas: 0, victorias: 0, jugadores: [] };
-      a.partidas += c.partidas;
-      a.victorias += c.victorias;
-      a.jugadores.push(`${j.rol ?? "?"} ${c.partidas}p ${pct(c.victorias / c.partidas)}`);
-      porChamp.set(c.id, a);
-    }
-  }
-  return [...porChamp.values()]
-    .map((a) => {
-      const wr = a.victorias / a.partidas;
-      const presencia = meta?.champs.get(a.id)?.presencia ?? 0;
-      const puntaje = a.partidas * (0.5 + wr) * (a.jugadores.length > 1 ? 1.3 : 1) * (1 + presencia);
-      return { ...a, puntaje, presencia };
-    })
-    .filter((a) => a.partidas >= 2)
-    .sort((a, b) => b.puntaje - a.puntaje)
-    .slice(0, 6);
-}
-
-function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null, scouting: Scouting) {
-  const { slots, turnoActual, sideElegido } = body;
-  const champsPorId = new Map(champs.map((c) => [c.id, c]));
-  const indice = crearIndice(champs);
-  const nombre = (id: string | null) => champsPorId.get(id ?? "")?.nombre ?? "?";
-  const usados = new Set(slots.slice(0, turnoActual).filter((id): id is string => !!id));
-
-  const lista = (side: Side, tipo: "ban" | "pick") => {
-    const hechos = ORDEN_DRAFT.flatMap((a, i) =>
-      i < turnoActual && a.side === side && a.tipo === tipo ? [`${etiquetaAccion(a)} ${nombre(slots[i])}`] : [],
-    );
-    return hechos.length ? hechos.join(", ") : "ninguno";
-  };
-
-  const accion = ORDEN_DRAFT[turnoActual];
-  const esNuestro = accion.side === sideElegido;
-  const rival: Side = sideElegido === "blue" ? "red" : "blue";
-  const idsPicks = (side: Side) => ORDEN_DRAFT.flatMap((a, i) => (i < turnoActual && a.side === side && a.tipo === "pick" && slots[i] ? [slots[i]!] : []));
-
-  // champs del pool: busco nombres sueltos en el texto libre ("top: Aatrox, Jax")
-  const idsPool = new Set<string>();
-  for (const pedazo of (body.pool ?? "").split(/[,:;\n]/)) {
-    const q = normalizar(pedazo);
-    const e = q && indice.find((x) => x.nombreNorm === q || x.idNorm === q || x.atajos.includes(q));
-    if (e) idsPool.add(e.champ.id);
-  }
-
-  const partes = [
-    `Nuestro side: ${sideElegido}. Rival: ${rival}.`,
-    `Accion actual: ${accion.tipo === "ban" ? "BAN" : "PICK"} ${etiquetaAccion(accion)} (fase ${accion.fase}). Le toca a ${esNuestro ? "NOSOTROS" : "EL RIVAL"}.`,
-    // marco de quien es cada lado en cada linea, sino el modelo mezcla perspectivas en el turno del rival
-    `Bans blue (${sideElegido === "blue" ? "NOSOTROS" : "RIVAL"}): ${lista("blue", "ban")}`,
-    `Bans red (${sideElegido === "red" ? "NOSOTROS" : "RIVAL"}): ${lista("red", "ban")}`,
-    `Picks blue (${sideElegido === "blue" ? "NOSOTROS" : "RIVAL"}): ${lista("blue", "pick")}`,
-    `Picks red (${sideElegido === "red" ? "NOSOTROS" : "RIVAL"}): ${lista("red", "pick")}`,
-    `Pool extra anotado a mano: ${body.pool?.trim() || "ninguno"}`,
-  ];
-
-  // lo que juega cada jugador en ranked de LAS (pestaña Scout). Va antes del meta porque sirve aunque no haya datos pro
-  for (const [clave, titulo] of [["nosotros", "NUESTROS jugadores"], ["rival", "Jugadores del RIVAL"]] as const) {
-    if (scouting[clave].length) {
-      partes.push("", `${titulo} (ultimas ranked en LAS):`, ...scouting[clave].map((j) => lineaJugador(j, nombre, usados)));
-    }
-  }
-
-  const amenazas = amenazasRival(scouting.rival, meta, usados);
-  if (amenazas.length) {
-    partes.push(
-      "",
-      "AMENAZAS DEL RIVAL (comfort picks calculados de su ranked, de mayor a menor):",
-      ...amenazas.map(
-        (a) =>
-          `- ${nombre(a.id)}: ${a.jugadores.join(" / ")}${a.jugadores.length > 1 ? " · lo juegan varios, flex" : ""}${meta ? ` · presencia pro ${pct(a.presencia)}` : ""}`,
-      ),
-    );
-    if (accion.tipo === "ban" && esNuestro) {
-      partes.push(
-        `En este ban, la opcion 1 TIENE que ser ${nombre(amenazas[0].id)} (la amenaza #1 del rival). Las otras 2 elegilas entre el resto de AMENAZAS y lo mas fuerte del meta pro.`,
-      );
-    }
-  }
-
-  if (!meta) {
-    partes.push("", "Datos pro: no disponibles todavia. Razona con criterio general y aclara que no hay datos.");
-    return partes.join("\n");
-  }
-
-  const ligas = Object.entries(meta.partidasPorLiga)
-    .map(([l, n]) => `${l} ${n} partidas (parche ${meta.parchesPorLiga[l].join("+")})`)
-    .join(", ");
-  partes.push(
-    "",
-    `Datos pro de Oracle's Elixir: ${ligas}. Ponderado LCK 50%, LEC 25%, LPL 25%${meta.muestraChica ? " · MUESTRA CHICA, tomalo con pinzas" : ""}.`,
-    "Estos datos son la base de la recomendacion: prioriza lo que dicen por sobre lo que recuerdes del meta.",
-  );
-
-  if (accion.tipo === "pick") {
-    const turno = meta.turnos.get(turnoActual);
-    if (turno) {
-      const roles = Object.entries(turno).sort((a, b) => b[1] - a[1]).map(([r, v]) => `${r} ${pct(v)}`).join(", ");
-      partes.push(`En pro, en ${etiquetaAccion(accion)} se pickea: ${roles}.`);
-    }
-  }
-
-  const picksHechos = [...idsPicks("blue"), ...idsPicks("red")];
-  if (picksHechos.length) {
-    partes.push("", "Picks ya hechos (datos pro):", ...picksHechos.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id), meta.rolesValidos.get(id))}`));
-  }
-
-  // en un pick, filtro candidatos a los roles que el lado que pickea todavia no cubrio (segun el rol pro principal)
-  const sidePickea = accion.side;
-  const rolesCubiertos = new Set(idsPicks(sidePickea).map((id) => rolPrincipal(meta.champs.get(id))).filter(Boolean));
-  const sirveParaRolAbierto = (s: StatChamp) =>
-    accion.tipo === "ban" || Object.keys(meta.rolesValidos.get(s.id) ?? {}).some((r) => !rolesCubiertos.has(r));
-
-  const candidatos = [...meta.champs.values()]
-    .filter((s) => !usados.has(s.id) && sirveParaRolAbierto(s))
-    .sort((a, b) => b.presencia - a.presencia)
-    .slice(0, MAX_CANDIDATOS);
-  partes.push(
-    "",
-    `Candidatos disponibles con mas presencia pro${accion.tipo === "pick" ? " para los roles abiertos" : ""}:`,
-    ...candidatos.map((s) => `- ${lineaStat(nombre(s.id), s, meta.rolesValidos.get(s.id))}`),
-  );
-
-  // datos pro de los champs de los pools (anotado + ranked de los dos equipos) que no esten ya en los candidatos
-  const yaListados = new Set(candidatos.map((s) => s.id));
-  const idsPools = new Set([
-    ...idsPool,
-    ...[...scouting.nosotros, ...scouting.rival].flatMap((j) => j.champs.slice(0, 5).map((c) => c.id)),
-  ]);
-  const poolsDisponibles = [...idsPools].filter((id) => !usados.has(id) && !yaListados.has(id));
-  if (poolsDisponibles.length) {
-    partes.push("", "Datos pro de otros champs de los pools:", ...poolsDisponibles.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id), meta.rolesValidos.get(id))}`));
-  }
-
-  return partes.join("\n");
-}
+const OPCIONES_FINALES = 3;
 
 // valido todo lo que viene del cliente: cada llamada gasta creditos de Mistral y el texto termina en el prompt
 function validarBody(crudo: unknown): Body | null {
@@ -291,9 +58,6 @@ export async function POST(request: Request) {
   const modelo = body.modelo && PRECIOS_MISTRAL[body.modelo] ? body.modelo : MODELO_DEFAULT;
 
   const { version, champs } = await getDataDragon();
-  const indice = crearIndice(champs);
-  const usados = new Set(body.slots.slice(0, body.turnoActual));
-  const usadosIds = new Set(body.slots.slice(0, body.turnoActual).filter((id): id is string => !!id));
 
   // si Supabase no esta configurado o esta vacio, igual recomienda pero avisando que no hay datos pro
   let meta: MetaPro | null = null;
@@ -305,8 +69,8 @@ export async function POST(request: Request) {
     avisoMeta = e instanceof Error ? e.message : "No se pudo leer el meta pro";
   }
 
-  // el scouting ya se hizo en la pestaña Scout: aca solo leo la cache, sin gastar requests de Riot
-  // el rol que puso el usuario en Scout (el del equipo) le gana al que mas juega en ranked
+  // el scouting ya se hizo en la pestaña Scout: aca solo leo la cache, sin gastar requests de Riot.
+  // El rol que puso el usuario en Scout (el del equipo) le gana al que mas juega en ranked
   const conRolDelEquipo = async (lista: JugadorDraft[]) => {
     const rolPorId = new Map(lista.map((j) => [normalizarRiotId(j.riotId), j.rol]));
     const resumenes = await resumenesDesdeCache(lista.map((j) => j.riotId));
@@ -322,77 +86,118 @@ export async function POST(request: Request) {
     // si falla la cache recomiendo igual, sin scouting
   }
 
-  try {
-    const { resultado, uso } = await llamarMistral<RespuestaIA>({
-      modelo,
-      mensajes: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: armarContexto(body, champs, meta, scouting) },
-      ],
-      schema: SCHEMA,
-      nombreSchema: "recomendacion_draft",
-    });
+  const ctx = armarContextos(body, champs, meta, scouting);
 
-    const accion = ORDEN_DRAFT[body.turnoActual];
-    const esNuestro = accion.side === body.sideElegido;
-    // en un pick, el rol no puede repetir uno ya cubierto por el lado que pickea
-    const rolesCubiertos = new Set(
-      accion.tipo === "pick" ? (esNuestro ? resultado.rolesNuestros : resultado.rolesRival).map((r) => r.rol) : [],
-    );
+  // Respondo en streaming (una linea JSON por evento) para que la pantalla muestre a cada agente apenas termina
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const enviar = (e: EventoKuai) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
+      const inicio = Date.now();
+      const usos: { tokensEntrada: number; tokensSalida: number; costoUsd: number }[] = [];
 
-    // El modelo devuelve 5 nombres; los paso a ids de Data Dragon y valido cada uno contra los datos pro:
-    // un champ solo va en un rol donde los pros lo jugaron (minimo MIN_PARTIDAS_ROL). Si el modelo le erra
-    // al rol lo corrijo al real; si no hay rol posible, queda marcado y no se puede elegir
-    const revisadas = resultado.opciones.map((o) => {
-      const q = normalizar(o.champ);
-      const champ = indice.find((e) => e.nombreNorm === q || e.idNorm === q)?.champ;
-      const base = { ...o, id: champ?.id ?? null, nombre: champ?.nombre ?? o.champ };
-      if (!champ) return { ...base, problema: "no existe" };
-      if (usados.has(champ.id)) return { ...base, problema: "ya usado" };
+      const correr = async <T,>(system: string, contenido: string, schema: Record<string, unknown>, nombre: string) => {
+        const { resultado, uso } = await llamarMistral<T>({
+          modelo,
+          mensajes: [
+            { role: "system", content: system },
+            { role: "user", content: contenido },
+          ],
+          schema,
+          nombreSchema: nombre,
+        });
+        usos.push(uso);
+        return { resultado, ms: uso.ms };
+      };
 
-      let rol = o.rol;
-      if (meta) {
-        const validos = Object.entries(meta.rolesValidos.get(champ.id) ?? {})
-          .sort((a, b) => b[1] - a[1])
-          .map(([r]) => r);
-        if (!validos.length) return { ...base, problema: "sin partidas pro" };
-        if (!validos.includes(rol)) {
-          // en un ban va el rol donde mas se juega; en un pick, el primero que el lado que pickea tenga abierto
-          const corregido = accion.tipo === "ban" ? validos[0] : validos.find((r) => !rolesCubiertos.has(r));
-          if (!corregido) return { ...base, problema: `no se juega de ${o.rol} en pro` };
-          rol = corregido;
+      // vista previa de un agente: ids, usados y roles pro; los roles cubiertos se chequean recien en el final
+      const previa = (r: RespuestaAgente, ms: number): AgenteVista => ({
+        lectura: r.lectura,
+        opciones: revisarOpciones(r.opciones, { ...ctx, meta, rolesCubiertos: new Set() }),
+        ms,
+      });
+
+      try {
+        // Pro corre siempre (ademas fija los roles de los picks hechos). Scout solo si hay jugadores cargados
+        const pPro = correr<RespuestaPro>(SYSTEM_PRO, ctx.pro, SCHEMA_PRO, "agente_pro").then(({ resultado, ms }) => {
+          const vista = previa(resultado, ms);
+          enviar({ tipo: "agente", agente: "pro", resultado: vista });
+          return { resultado, vista };
+        });
+        const pScout = ctx.hayScouting
+          ? correr<RespuestaAgente>(SYSTEM_SCOUT, ctx.scout, SCHEMA_AGENTE, "agente_scout").then(({ resultado, ms }) => {
+              const vista = previa(resultado, ms);
+              enviar({ tipo: "agente", agente: "scout", resultado: vista });
+              return { resultado, vista };
+            })
+          : null;
+        if (!pScout) enviar({ tipo: "agente", agente: "scout", omitido: "No hay jugadores cargados en Scout" });
+
+        const [rPro, rScout] = await Promise.allSettled([pPro, pScout ?? Promise.resolve(null)]);
+        const pro = rPro.status === "fulfilled" ? rPro.value : null;
+        const scout = rScout.status === "fulfilled" ? rScout.value : null;
+        if (rScout.status === "rejected") enviar({ tipo: "agente", agente: "scout", omitido: "Scout falló, sigo solo con Pro" });
+        if (rPro.status === "rejected") enviar({ tipo: "agente", agente: "pro", omitido: "Pro falló, sigo solo con Scout" });
+        if (!pro && !scout) throw rPro.status === "rejected" ? rPro.reason : new Error("Los agentes no respondieron");
+
+        // en un pick, el rol no puede repetir uno ya cubierto por el lado que pickea (segun los roles que fijo Pro)
+        const rolesCubiertos = new Set(
+          ctx.accion.tipo === "pick" && pro
+            ? (ctx.esNuestro ? pro.resultado.rolesNuestros : pro.resultado.rolesRival).map((r) => r.rol)
+            : [],
+        );
+        const revisar = (opciones: RespuestaAgente["opciones"]) => revisarOpciones(opciones, { ...ctx, meta, rolesCubiertos });
+
+        let lectura: string;
+        let opciones: OpcionVista[];
+        if (pro && scout) {
+          // los dos respondieron: KuAi arma el consenso
+          const { resultado: consenso } = await correr<RespuestaAgente>(
+            SYSTEM_CONSENSO,
+            contextoConsenso(ctx.base, scout.resultado, pro.resultado),
+            SCHEMA_AGENTE,
+            "consenso",
+          );
+          lectura = consenso.lectura;
+          opciones = revisar(consenso.opciones).map((o) => ({ ...o, origen: origenDe(o.id, scout.vista.opciones, pro.vista.opciones) }));
+        } else {
+          // uno solo respondio: su propuesta es la final
+          const solo = (pro ?? scout)!;
+          const origen: Origen = pro ? "pro" : "scout";
+          lectura = solo.resultado.lectura;
+          opciones = revisar(solo.resultado.opciones).map((o) => ({ ...o, origen }));
         }
-      }
-      if (accion.tipo === "pick" && rolesCubiertos.has(rol)) return { ...base, rol, problema: "rol ya cubierto" };
-      return { ...base, rol, problema: null as string | null };
-    });
-    // las 3 mejores que pasaron la validacion; si no alcanzan, completo con las marcadas para que se vea por que
-    const opciones = [...revisadas.filter((o) => !o.problema), ...revisadas.filter((o) => o.problema)].slice(0, 3);
 
-    return Response.json({
-      turno: body.turnoActual,
-      esNuestro,
-      tipo: accion.tipo,
-      rolesNuestros: resultado.rolesNuestros,
-      rolesRival: resultado.rolesRival,
-      lectura: resultado.lectura,
-      opciones,
-      meta: meta
-        ? { parchesPorLiga: meta.parchesPorLiga, partidasPorLiga: meta.partidasPorLiga, muestraChica: meta.muestraChica }
-        : null,
-      avisoMeta,
-      scouting: { nosotros: scouting.nosotros.length, rival: scouting.rival.length },
-      // la lista calculada va tambien al panel: se ve de donde sale cada ban sin depender de lo que diga la IA
-      amenazas: amenazasRival(scouting.rival, meta, usadosIds).map((a) => ({
-        id: a.id,
-        partidas: a.partidas,
-        winrate: a.victorias / a.partidas,
-        jugadores: a.jugadores.length,
-      })),
-      uso,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Error desconocido";
-    return Response.json({ error: msg }, { status: 502 });
-  }
+        const final: Final = {
+          turno: body.turnoActual,
+          esNuestro: ctx.esNuestro,
+          tipo: ctx.accion.tipo,
+          rolesNuestros: pro?.resultado.rolesNuestros ?? [],
+          rolesRival: pro?.resultado.rolesRival ?? [],
+          lectura,
+          opciones: opciones.slice(0, OPCIONES_FINALES),
+          meta: meta ? { parchesPorLiga: meta.parchesPorLiga, partidasPorLiga: meta.partidasPorLiga, muestraChica: meta.muestraChica } : null,
+          avisoMeta,
+          scouting: { nosotros: scouting.nosotros.length, rival: scouting.rival.length },
+          // la lista calculada va tambien al panel: se ve de donde sale cada ban sin depender de lo que diga la IA
+          amenazas: ctx.amenazas.map((a) => ({ id: a.id, partidas: a.partidas, winrate: a.victorias / a.partidas, jugadores: a.jugadores.length })),
+          uso: {
+            modelo,
+            ms: Date.now() - inicio,
+            tokensEntrada: usos.reduce((s, u) => s + u.tokensEntrada, 0),
+            tokensSalida: usos.reduce((s, u) => s + u.tokensSalida, 0),
+            costoUsd: usos.reduce((s, u) => s + u.costoUsd, 0),
+            llamadas: usos.length,
+          },
+        };
+        enviar({ tipo: "final", final });
+      } catch (e) {
+        enviar({ tipo: "error", error: e instanceof Error ? e.message : "Error desconocido" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
 }

@@ -22,7 +22,7 @@ Todo tiene que ser gratis salvo Mistral. Vercel, Supabase (free tier), Riot API,
 | Recomendar y explicar (default) | `mistral-medium-2604` (Medium 3.5) | 1.5 / 7.5 |
 | Leer screenshots (a futuro, tiene visión) | `mistral-small-2603` (Small 4) | 0.15 / 0.6 |
 
-- Una recomendación con Medium cuesta ~$0.0026 y tarda ~2s.
+- Una recomendación con Medium (2 agentes + consenso = 3 llamadas) cuesta ~$0.014 y tarda ~6 s.
 - Small 4 NO sirve para razonar el draft: en la prueba leyó mal el estado (puso un champ baneado como pick del rival).
 - Los precios están en `PRECIOS_MISTRAL` (`src/lib/mistral.ts`). Si se agrega un modelo, sumarlo ahí.
 
@@ -58,6 +58,8 @@ Picks fase 2: R4 | B4 B5 | R5
 20 acciones en total. El estado del draft se modela como un array de 20 slots con un índice de turno actual. Deshacer = volver el índice atrás.
 
 ## Cómo razona la IA (en la UI se llama **KuAi**)
+- **Dos agentes + consenso** (`src/lib/kuai/`): el agente **Scout** ve el draft y los jugadores (ranked de mi equipo y del rival, amenazas) pero no el meta; el agente **Pro** ve el draft y el meta pro (presencia, WR, patrón por turno, roles válidos) pero no a los jugadores. Corren en paralelo y proponen 5 cada uno; después **KuAi** arma el consenso eligiendo solo entre lo que propusieron (en bans y turno rival pesa más Scout, en nuestros picks pesa más Pro). Si no hay scouting, corre solo Pro. ~6 s y ~$0,014 por recomendación (3 llamadas).
+- El route responde en streaming NDJSON (`EventoKuai` en `kuai/tipos.ts`): cada agente aparece en la pantalla apenas termina. El origen de cada opción (coinciden / Scout / Pro) lo calcula el código, no el modelo.
 - El código calcula los números (meta, pools, scouting) y arma los candidatos. La IA elige y explica. Nunca inventa stats, winrates ni nombres de habilidades.
 - Todo lo que devuelve se valida contra Data Dragon: champ que no existe, ya usado o que repite un rol cubierto se marca y no se puede elegir.
 - Antes de recomendar tiene que fijar el rol de cada pick ya hecho de los dos lados (si no, recomienda dos junglas).
@@ -90,12 +92,14 @@ Picks fase 2: R4 | B4 B5 | R5
 - `src/lib/oracleElixir.ts`: CSV de Oracle's Elixir -> filas de `partidas_pro` / `acciones_pro`
 - `src/lib/metaPro.ts`: elige parches por liga, pondera LCK/LEC/LPL y calcula stats por champ y por turno
 - `src/app/api/cron/sync-meta/route.ts`: sync diario del meta pro (protegido con `CRON_SECRET`)
-- `src/app/api/recomendar/route.ts`: prompt, schema y validación de la recomendación
+- `src/lib/kuai/contexto.ts`: lo que ve cada agente (draft, scouting, meta) y las amenazas del rival
+- `src/lib/kuai/agentes.ts`: prompts de Scout, Pro y consenso, schemas y validación de opciones (roles pro)
+- `src/app/api/recomendar/route.ts`: orquesta los agentes y manda los eventos en streaming
 - `src/lib/riot.ts`, `src/lib/scouting.ts`: Riot API (account-v1, match-v5) y resumen por jugador con cache en `jugadores` / `partidas_jugador`
 - `src/lib/riotIds.ts`: saca Riot IDs de links de op.gg/u.gg o texto del lobby (sin abrir la página)
 - `src/lib/sesion.ts` + `src/proxy.ts`: login (`APP_PASSWORD`, cookie HMAC), cron con `CRON_SECRET`
 - `src/app/api/scouting/route.ts`: scoutea un jugador por llamada
-- `src/components/`: `App` (pestañas y estado del draft), `Scout`, `usePlanteles` (planteles en localStorage + cola de scouting), `Tablero`, `ElegirSide`, `LineaDeTiempo`, `ColumnaEquipo`, `Buscador`, `PanelIA`, `IconoChamp`
+- `src/components/`: `App` (pestañas y estado del draft), `Scout`, `usePlanteles` (planteles en localStorage + cola de scouting), `Tablero`, `ElegirSide`, `LineaDeTiempo`, `ColumnaEquipo`, `Buscador`, `PanelIA`, `ConversacionAgentes`, `IconoChamp`
 
 ## Estilo de código
 - Variables y funciones en camelCase. Nombres del dominio en español cuando suene natural (`turnoActual`, `sideElegido`, `champsBaneados`); lo técnico genérico en inglés.
