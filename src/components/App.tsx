@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import Link from "next/link";
 import { Marca } from "./Logo";
 import Scout from "./Scout";
 import Tablero from "./Tablero";
@@ -35,7 +36,9 @@ export default function App({ champs, version }: Props) {
     <div className="flex h-dvh flex-col">
       <nav className="border-b border-white/[0.06] bg-black/20 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1400px] items-center gap-8 px-10 py-3.5">
-          <Marca />
+          <Link href="/" title="Volver al inicio">
+            <Marca />
+          </Link>
 
           <div className="flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
             {PESTAÑAS.map((p) => (

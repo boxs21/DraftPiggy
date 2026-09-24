@@ -99,6 +99,7 @@ Picks fase 2: R4 | B4 B5 | R5
 - `src/lib/riotIds.ts`: saca Riot IDs de links de op.gg/u.gg o texto del lobby (sin abrir la página)
 - `src/lib/sesion.ts` + `src/proxy.ts`: login (`APP_PASSWORD`, cookie HMAC), cron con `CRON_SECRET`
 - `src/app/api/scouting/route.ts`: scoutea un jugador por llamada
+- `src/app/page.tsx`: landing pública en `/` (cómo funciona, datos, fuentes; números en vivo desde Supabase con `revalidate` de 1 h, vía `src/lib/resumenPublico.ts`). La herramienta vive en `/app` detrás del login
 - `src/components/`: `App` (pestañas y estado del draft), `Scout`, `usePlanteles` (planteles en localStorage + cola de scouting), `Tablero`, `ElegirSide`, `LineaDeTiempo`, `ColumnaEquipo`, `Buscador`, `PanelIA`, `ConversacionAgentes`, `IconoChamp`
 
 ## Estilo de código

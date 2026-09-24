@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     return Response.redirect(new URL("/entrar?error=1", request.url), 303);
   }
 
-  const headers = new Headers({ Location: new URL("/", request.url).toString() });
+  const headers = new Headers({ Location: new URL("/app", request.url).toString() });
   headers.append(
     "Set-Cookie",
     `${COOKIE_SESION}=${tokenSesion()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DURACION_SESION_S}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,

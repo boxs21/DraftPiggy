@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LogoPiggy } from "@/components/Logo";
 
 export default async function Entrar({ searchParams }: PageProps<"/entrar">) {
@@ -32,6 +33,10 @@ export default async function Entrar({ searchParams }: PageProps<"/entrar">) {
         </button>
         {error && <p className="text-center text-xs text-rose-400">Contraseña incorrecta</p>}
       </form>
+
+      <Link href="/" className="text-xs text-neutral-600 transition hover:text-neutral-300">
+        ← Qué es Draft Piggy
+      </Link>
     </main>
   );
 }
