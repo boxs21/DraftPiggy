@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import IconoChamp from "./IconoChamp";
 import type { Side } from "@/lib/draft";
+import type { JugadoresDraft } from "@/lib/riotIds";
 
 type Opcion = { champ: string; rol: string; razon: string; id: string | null; nombre: string; problema: string | null };
 
@@ -26,7 +27,7 @@ type Props = {
   sideElegido: Side;
   version: string;
   terminado: boolean;
-  jugadores: { nosotros: string[]; rival: string[] };
+  jugadores: JugadoresDraft;
   onElegir: (id: string) => void;
 };
 

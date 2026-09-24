@@ -12,9 +12,13 @@ export type Jugador = {
   estado: "esperando" | "cargando" | "listo" | "error";
   error?: string;
   partidas?: number;
-  rol?: string | null;
+  rol?: string | null; // el que mas juega en ranked
+  rolAsignado?: string; // el que juega en el equipo, si lo cambiaste a mano
   champs?: ChampJugador[];
 };
+
+// el rol que vale para el draft: el que pusiste a mano o, si no, el de ranked
+export const rolDe = (j: Jugador) => j.rolAsignado ?? j.rol ?? null;
 
 type Planteles = Record<Equipo, Jugador[]>;
 
@@ -104,8 +108,11 @@ export function usePlanteles() {
     scoutear(equipo, [riotId]);
   };
 
-  // lo que usa la recomendacion: solo los que terminaron bien
-  const riotIdsListos = (equipo: Equipo) => planteles[equipo].filter((j) => j.estado === "listo").map((j) => j.riotId);
+  const asignarRol = (equipo: Equipo, riotId: string, rol: string) => cambiarJugador(equipo, riotId, { rolAsignado: rol });
 
-  return { planteles, agregar, quitar, vaciar, refrescar, reintentar, riotIdsListos };
+  // lo que usa la recomendacion: solo los que terminaron bien, con el rol que juegan en el equipo
+  const listos = (equipo: Equipo) =>
+    planteles[equipo].filter((j) => j.estado === "listo").map((j) => ({ riotId: j.riotId, rol: rolDe(j) ?? undefined }));
+
+  return { planteles, agregar, quitar, vaciar, refrescar, reintentar, asignarRol, listos };
 }

@@ -5,6 +5,10 @@
 
 export const MAX_JUGADORES = 7; // 5 titulares y algun suplente
 
+// lo que viaja del Scout al live draft: el jugador y el rol que juega en el equipo
+export type JugadorDraft = { riotId: string; rol?: string };
+export type JugadoresDraft = { nosotros: JugadorDraft[]; rival: JugadorDraft[] };
+
 const RIOT_ID = /^[^#,]{3,16}#[A-Za-z0-9]{2,5}$/;
 
 // "Nombre-TAG" -> "Nombre#TAG": el tag nunca tiene guiones, asi que corto en el ultimo

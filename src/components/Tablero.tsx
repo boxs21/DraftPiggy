@@ -7,6 +7,7 @@ import ElegirSide from "./ElegirSide";
 import LineaDeTiempo from "./LineaDeTiempo";
 import PanelIA from "./PanelIA";
 import type { Champ } from "@/lib/champs";
+import type { JugadoresDraft } from "@/lib/riotIds";
 import { DRAFT_VACIO, ORDEN_DRAFT, TOTAL_ACCIONES, etiquetaAccion, type EstadoDraft, type Side } from "@/lib/draft";
 
 // el estado vive en App para que el draft no se pierda al pasar por la pestaña Scout
@@ -18,7 +19,7 @@ type Props = {
   setSideElegido: (side: Side | null) => void;
   draft: EstadoDraft;
   setDraft: Dispatch<SetStateAction<EstadoDraft>>;
-  jugadores: { nosotros: string[]; rival: string[] };
+  jugadores: JugadoresDraft;
 };
 
 // hasta que turno se puede avanzar: lo jugado mas lo deshecho que sigue guardado en el array

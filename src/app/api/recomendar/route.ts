@@ -5,7 +5,7 @@ import { getMetaPro, type MetaPro, type StatChamp } from "@/lib/metaPro";
 import { MODELO_DEFAULT, PRECIOS_MISTRAL, llamarMistral } from "@/lib/mistral";
 import { resumenesDesdeCache, type ResumenJugador } from "@/lib/scouting";
 import { requestConSesion } from "@/lib/sesion";
-import { esRiotIdValido, MAX_JUGADORES } from "@/lib/riotIds";
+import { esRiotIdValido, MAX_JUGADORES, normalizarRiotId, type JugadorDraft, type JugadoresDraft } from "@/lib/riotIds";
 
 type Body = {
   slots: (string | null)[];
@@ -14,7 +14,7 @@ type Body = {
   pool?: string;
   modelo?: string;
   // Riot IDs cargados en la pestaña Scout; los datos se leen de la cache, no se confia en lo que mande el cliente
-  jugadores?: { nosotros: string[]; rival: string[] };
+  jugadores?: JugadoresDraft;
 };
 
 type Scouting = { nosotros: ResumenJugador[]; rival: ResumenJugador[] };
@@ -270,7 +270,12 @@ function validarBody(crudo: unknown): Body | null {
   if (b.modelo !== undefined && typeof b.modelo !== "string") return null;
   if (b.jugadores !== undefined) {
     const listaOk = (l: unknown) =>
-      Array.isArray(l) && l.length <= MAX_JUGADORES && l.every((id) => typeof id === "string" && esRiotIdValido(id));
+      Array.isArray(l) &&
+      l.length <= MAX_JUGADORES &&
+      l.every(
+        (j: JugadorDraft) =>
+          typeof j?.riotId === "string" && esRiotIdValido(j.riotId) && (j.rol === undefined || ROLES.includes(j.rol)),
+      );
     if (!listaOk(b.jugadores?.nosotros) || !listaOk(b.jugadores?.rival)) return null;
   }
   return b as Body;
@@ -300,11 +305,17 @@ export async function POST(request: Request) {
   }
 
   // el scouting ya se hizo en la pestaña Scout: aca solo leo la cache, sin gastar requests de Riot
+  // el rol que puso el usuario en Scout (el del equipo) le gana al que mas juega en ranked
+  const conRolDelEquipo = async (lista: JugadorDraft[]) => {
+    const rolPorId = new Map(lista.map((j) => [normalizarRiotId(j.riotId), j.rol]));
+    const resumenes = await resumenesDesdeCache(lista.map((j) => j.riotId));
+    return resumenes.map((r) => ({ ...r, rol: rolPorId.get(normalizarRiotId(r.riotId)) ?? r.rol }));
+  };
   const scouting: Scouting = { nosotros: [], rival: [] };
   try {
     [scouting.nosotros, scouting.rival] = await Promise.all([
-      resumenesDesdeCache(body.jugadores?.nosotros ?? []),
-      resumenesDesdeCache(body.jugadores?.rival ?? []),
+      conRolDelEquipo(body.jugadores?.nosotros ?? []),
+      conRolDelEquipo(body.jugadores?.rival ?? []),
     ]);
   } catch {
     // si falla la cache recomiendo igual, sin scouting

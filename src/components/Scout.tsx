@@ -2,7 +2,7 @@
 
 import { useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import IconoChamp from "./IconoChamp";
-import type { Equipo, Jugador, usePlanteles } from "./usePlanteles";
+import { rolDe, type Equipo, type Jugador, type usePlanteles } from "./usePlanteles";
 import type { Champ } from "@/lib/champs";
 
 type Props = {
@@ -121,7 +121,7 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
 }
 
 const posRol = (j: Jugador) => {
-  const i = ORDEN_ROL.indexOf(j.rol ?? "");
+  const i = ORDEN_ROL.indexOf(rolDe(j) ?? "");
   return i === -1 ? ORDEN_ROL.length : i;
 };
 
@@ -129,9 +129,22 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
   return (
     <li className="group flex flex-col gap-2 rounded-lg border border-white/5 bg-black/20 p-3">
       <div className="flex items-center gap-3">
-        <span className="w-10 rounded bg-white/[0.06] py-0.5 text-center text-[10px] font-semibold tracking-wider text-neutral-400">
-          {j.rol ? ETIQUETA_ROL[j.rol] : "—"}
-        </span>
+        {/* el rol de ranked no siempre es el del equipo: click y lo cambias */}
+        <select
+          value={rolDe(j) ?? ""}
+          onChange={(e) => plantel.asignarRol(equipo, j.riotId, e.target.value)}
+          title={j.rol ? `En ranked juega más ${ETIQUETA_ROL[j.rol]}. Cambialo si en el equipo juega otro rol` : "Elegí el rol que juega en el equipo"}
+          className={`w-14 cursor-pointer appearance-none rounded py-0.5 text-center text-[10px] font-semibold tracking-wider outline-none transition hover:bg-white/10 ${
+            j.rolAsignado ? "bg-cyan-400/15 text-cyan-300" : "bg-white/[0.06] text-neutral-400"
+          }`}
+        >
+          {!rolDe(j) && <option value="">—</option>}
+          {ORDEN_ROL.map((r) => (
+            <option key={r} value={r} className="bg-neutral-900">
+              {ETIQUETA_ROL[r]}
+            </option>
+          ))}
+        </select>
         <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">{j.riotId}</span>
         {j.estado === "listo" && <span className="text-xs text-neutral-600 tabular-nums">{j.partidas} ranked</span>}
         <button

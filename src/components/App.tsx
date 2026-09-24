@@ -63,7 +63,7 @@ export default function App({ champs, version }: Props) {
           setSideElegido={setSideElegido}
           draft={draft}
           setDraft={setDraft}
-          jugadores={{ nosotros: plantel.riotIdsListos("nosotros"), rival: plantel.riotIdsListos("rival") }}
+          jugadores={{ nosotros: plantel.listos("nosotros"), rival: plantel.listos("rival") }}
         />
       )}
     </div>
