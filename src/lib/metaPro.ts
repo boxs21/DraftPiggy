@@ -26,7 +26,12 @@ export type StatChamp = {
   fase2: number; // % de sus picks en fase 2
 };
 
+// un champ solo se recomienda en un rol donde los pros lo jugaron al menos esta cantidad de veces en el año
+export const MIN_PARTIDAS_ROL = 2;
+
 export type MetaPro = {
+  // roles donde cada champ se jugo en pro en todo el año (>= MIN_PARTIDAS_ROL), con cuantas partidas
+  rolesValidos: Map<string, Record<string, number>>;
   parchesPorLiga: Record<string, string[]>;
   partidasPorLiga: Record<string, number>;
   muestraChica: boolean;
@@ -87,11 +92,17 @@ export async function getMetaPro(parcheActual: string): Promise<MetaPro | null> 
   const sumaPesos = ligas.reduce((s, l) => s + (PESOS_LIGA[l] ?? 0), 0);
   const peso = (liga: string) => (PESOS_LIGA[liga] ?? 0) / sumaPesos;
 
-  const [{ data: filasChamps, error: e1 }, { data: filasTurnos, error: e2 }] = await Promise.all([
+  const [{ data: filasChamps, error: e1 }, { data: filasTurnos, error: e2 }, { data: filasRoles, error: e3 }] = await Promise.all([
     db.rpc("stats_champs_pro", { p_claves: claves }),
     db.rpc("stats_turnos_pro", { p_claves: claves }),
+    db.rpc("roles_pro", { p_min: MIN_PARTIDAS_ROL }),
   ]);
-  if (e1 || e2) throw new Error((e1 ?? e2)!.message);
+  if (e1 || e2 || e3) throw new Error((e1 ?? e2 ?? e3)!.message);
+
+  const rolesValidos = new Map<string, Record<string, number>>();
+  for (const f of filasRoles as { champ_id: string; rol: string; n: number }[]) {
+    rolesValidos.set(f.champ_id, { ...rolesValidos.get(f.champ_id), [f.rol]: f.n });
+  }
 
   // junto las filas por champ (vienen una por liga) y pondero cada tasa por el peso de su liga
   const porChamp = new Map<string, FilaChamp[]>();
@@ -151,5 +162,5 @@ export async function getMetaPro(parcheActual: string): Promise<MetaPro | null> 
     turnos.set(orden, Object.fromEntries(Object.entries(t).map(([r, v]) => [r, v / suma])));
   }
 
-  return { parchesPorLiga, partidasPorLiga, muestraChica, champs, turnos };
+  return { rolesValidos, parchesPorLiga, partidasPorLiga, muestraChica, champs, turnos };
 }

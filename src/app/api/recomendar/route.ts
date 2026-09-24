@@ -80,7 +80,8 @@ Cómo pensar el draft (úsalo, no lo repitas):
 
 Reglas:
 - Primero completa "rolesNuestros" y "rolesRival" con el rol de cada pick ya hecho de cada lado (solo picks). Usa los roles pro de los datos como guia.
-- Devuelve exactamente 3 opciones, de mejor a peor, solo con campeones que existan y que NO esten usados.
+- Devuelve exactamente 5 opciones, de mejor a peor, solo con campeones que existan y que NO esten usados.
+- ROLES: un champ solo va en un rol que aparezca en sus "roles pro" de los datos (se jugo ahi al menos 2 veces en pro este año). Nunca inventes un rol: si un champ es solo top, no lo pongas de jungla. En un ban, el rol es donde ese champ se juega.
 - Si es un pick nuestro: prioriza el pool del jugador del rol abierto (sus champs de ranked) y un rol que no tengamos cubierto. Si varios roles estan abiertos, no pongas los 3 en el mismo rol salvo que sea claramente lo mejor.
 - Si es un ban nuestro: piensa qué le sirve al rival. Si hay scouting del rival, prioriza sus comfort picks (muchas partidas y buen WR) que ademas esten fuertes en pro, sobre todo de los roles que todavia no pickeo.
 - Si el turno es del rival: devuelve las 3 cosas mas probables que haga el rival. Si hay scouting, usa el pool del jugador rival del rol que le falta: lo que juega en ranked pesa mas que el meta promedio. Las razones van desde el punto de vista del RIVAL: sinergia con SUS picks y lo que le sirve contra NOSOTROS, nunca "complementa a" un champ nuestro.
@@ -93,15 +94,15 @@ Reglas:
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 // una linea compacta por champ con lo que dicen los pros, para que el modelo razone con numeros y no de memoria
-function lineaStat(nombre: string, s: StatChamp | undefined) {
-  if (!s) return `${nombre}: sin partidas pro en la muestra`;
-  const roles = Object.entries(s.roles)
-    .filter(([, v]) => v >= 0.1)
+function lineaStat(nombre: string, s: StatChamp | undefined, rolesPro: Record<string, number> | undefined) {
+  // los roles salen de todo el año (minimo 2 partidas), no solo del parche: es lo que decide donde se puede recomendar
+  const roles = Object.entries(rolesPro ?? {})
     .sort((a, b) => b[1] - a[1])
-    .map(([r, v]) => `${r} ${pct(v)}`)
+    .map(([r, n]) => `${r} ${n}p`)
     .join(", ");
+  if (!s) return `${nombre}: roles pro ${roles || "NINGUNO (no recomendar)"} | sin partidas en el parche`;
   const wr = s.winrate === null ? "WR s/d" : `WR ${pct(s.winrate)} (${s.picks} picks)`;
-  return `${nombre}: ${roles || "rol s/d"} | presencia ${pct(s.presencia)} (pick ${pct(s.pickRate)}, ban ${pct(s.banRate)}) | ${wr} | pick temprano ${pct(s.temprano)}, fase 2 ${pct(s.fase2)}`;
+  return `${nombre}: roles pro ${roles || "NINGUNO (no recomendar)"} | presencia ${pct(s.presencia)} (pick ${pct(s.pickRate)}, ban ${pct(s.banRate)}) | ${wr} | pick temprano ${pct(s.temprano)}, fase 2 ${pct(s.fase2)}`;
 }
 
 const rolPrincipal = (s?: StatChamp) => (s ? Object.entries(s.roles).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined);
@@ -226,14 +227,14 @@ function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null, scouti
 
   const picksHechos = [...idsPicks("blue"), ...idsPicks("red")];
   if (picksHechos.length) {
-    partes.push("", "Picks ya hechos (datos pro):", ...picksHechos.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id))}`));
+    partes.push("", "Picks ya hechos (datos pro):", ...picksHechos.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id), meta.rolesValidos.get(id))}`));
   }
 
   // en un pick, filtro candidatos a los roles que el lado que pickea todavia no cubrio (segun el rol pro principal)
   const sidePickea = accion.side;
   const rolesCubiertos = new Set(idsPicks(sidePickea).map((id) => rolPrincipal(meta.champs.get(id))).filter(Boolean));
   const sirveParaRolAbierto = (s: StatChamp) =>
-    accion.tipo === "ban" || Object.entries(s.roles).some(([r, v]) => !rolesCubiertos.has(r) && v >= 0.25);
+    accion.tipo === "ban" || Object.keys(meta.rolesValidos.get(s.id) ?? {}).some((r) => !rolesCubiertos.has(r));
 
   const candidatos = [...meta.champs.values()]
     .filter((s) => !usados.has(s.id) && sirveParaRolAbierto(s))
@@ -242,7 +243,7 @@ function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null, scouti
   partes.push(
     "",
     `Candidatos disponibles con mas presencia pro${accion.tipo === "pick" ? " para los roles abiertos" : ""}:`,
-    ...candidatos.map((s) => `- ${lineaStat(nombre(s.id), s)}`),
+    ...candidatos.map((s) => `- ${lineaStat(nombre(s.id), s, meta.rolesValidos.get(s.id))}`),
   );
 
   // datos pro de los champs de los pools (anotado + ranked de los dos equipos) que no esten ya en los candidatos
@@ -253,7 +254,7 @@ function armarContexto(body: Body, champs: Champ[], meta: MetaPro | null, scouti
   ]);
   const poolsDisponibles = [...idsPools].filter((id) => !usados.has(id) && !yaListados.has(id));
   if (poolsDisponibles.length) {
-    partes.push("", "Datos pro de otros champs de los pools:", ...poolsDisponibles.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id))}`));
+    partes.push("", "Datos pro de otros champs de los pools:", ...poolsDisponibles.map((id) => `- ${lineaStat(nombre(id), meta.champs.get(id), meta.rolesValidos.get(id))}`));
   }
 
   return partes.join("\n");
@@ -339,19 +340,34 @@ export async function POST(request: Request) {
       accion.tipo === "pick" ? (esNuestro ? resultado.rolesNuestros : resultado.rolesRival).map((r) => r.rol) : [],
     );
 
-    // el modelo devuelve nombres, los paso a ids de Data Dragon y marco lo que no existe o ya se uso
-    const opciones = resultado.opciones.slice(0, 3).map((o) => {
+    // El modelo devuelve 5 nombres; los paso a ids de Data Dragon y valido cada uno contra los datos pro:
+    // un champ solo va en un rol donde los pros lo jugaron (minimo MIN_PARTIDAS_ROL). Si el modelo le erra
+    // al rol lo corrijo al real; si no hay rol posible, queda marcado y no se puede elegir
+    const revisadas = resultado.opciones.map((o) => {
       const q = normalizar(o.champ);
       const champ = indice.find((e) => e.nombreNorm === q || e.idNorm === q)?.champ;
-      const problema = !champ
-        ? "no existe"
-        : usados.has(champ.id)
-          ? "ya usado"
-          : rolesCubiertos.has(o.rol)
-            ? "rol ya cubierto"
-            : null;
-      return { ...o, id: champ?.id ?? null, nombre: champ?.nombre ?? o.champ, problema };
+      const base = { ...o, id: champ?.id ?? null, nombre: champ?.nombre ?? o.champ };
+      if (!champ) return { ...base, problema: "no existe" };
+      if (usados.has(champ.id)) return { ...base, problema: "ya usado" };
+
+      let rol = o.rol;
+      if (meta) {
+        const validos = Object.entries(meta.rolesValidos.get(champ.id) ?? {})
+          .sort((a, b) => b[1] - a[1])
+          .map(([r]) => r);
+        if (!validos.length) return { ...base, problema: "sin partidas pro" };
+        if (!validos.includes(rol)) {
+          // en un ban va el rol donde mas se juega; en un pick, el primero que el lado que pickea tenga abierto
+          const corregido = accion.tipo === "ban" ? validos[0] : validos.find((r) => !rolesCubiertos.has(r));
+          if (!corregido) return { ...base, problema: `no se juega de ${o.rol} en pro` };
+          rol = corregido;
+        }
+      }
+      if (accion.tipo === "pick" && rolesCubiertos.has(rol)) return { ...base, rol, problema: "rol ya cubierto" };
+      return { ...base, rol, problema: null as string | null };
     });
+    // las 3 mejores que pasaron la validacion; si no alcanzan, completo con las marcadas para que se vea por que
+    const opciones = [...revisadas.filter((o) => !o.problema), ...revisadas.filter((o) => o.problema)].slice(0, 3);
 
     return Response.json({
       turno: body.turnoActual,
