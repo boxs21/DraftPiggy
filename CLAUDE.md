@@ -61,7 +61,7 @@ Picks fase 2: R4 | B4 B5 | R5
 - El código calcula los números (meta, pools, scouting) y arma los candidatos. La IA elige y explica. Nunca inventa stats, winrates ni nombres de habilidades.
 - Todo lo que devuelve se valida contra Data Dragon: champ que no existe, ya usado o que repite un rol cubierto se marca y no se puede elegir.
 - Antes de recomendar tiene que fijar el rol de cada pick ya hecho de los dos lados (si no, recomienda dos junglas).
-- **Roles válidos:** un champ solo se recomienda en un rol donde tenga al menos 2 partidas pro en el año (`MIN_PARTIDAS_ROL` en `metaPro.ts`, función SQL `roles_pro`). KuAi devuelve 5 opciones; el código corrige el rol si el modelo le erra (ej: K'Sante siempre top) y se queda con las 3 primeras válidas.
+- **Roles válidos:** un champ solo se recomienda en un rol donde tenga al menos 2 partidas pro en el año (`MIN_PARTIDAS_ROL` en `metaPro.ts`, función SQL `roles_pro`). KuAi devuelve 5 opciones; el código corrige el rol si el modelo le erra (ej: K'Sante siempre top) y se queda con las 3 primeras válidas. Sin excepciones por ranked (ej: Shaco support de un jugador): es draft serio, solo cuenta lo que se juega en pro.
 - El razonamiento tiene que ser técnico y de pro play: seguridad para pick blind, flex picks, guardar counterpicks para el final, prioridad según el side, win condition y power spikes de la comp, y bans de fase 2 apuntados a lo que le falta al rival.
 - En turno del rival predice qué va a hacer.
 
