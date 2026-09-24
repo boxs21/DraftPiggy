@@ -154,7 +154,17 @@ export default function Tablero({ champs, champsPorId, version, sideElegido, set
                 {accionActual ? `Fase ${accionActual.fase} · ${accionActual.tipo === "ban" ? "Ban" : "Pick"} ` : "Fin"}
                 {accionActual && <span className={COLOR_SIDE[accionActual.side].texto}>{etiquetaAccion(accionActual)}</span>}
               </p>
-              <p className={`mt-1 text-4xl font-extralight ${terminado ? "text-neutral-300" : esMiTurno ? "text-cyan-300" : "text-neutral-400"}`}>
+              <p
+                className={`mt-1 flex items-center gap-3 text-4xl font-extralight ${
+                  terminado ? "text-neutral-300" : esMiTurno ? "text-cyan-300 drop-shadow-[0_0_18px_rgba(34,211,238,0.35)]" : "text-neutral-400"
+                }`}
+              >
+                {!terminado && (
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${esMiTurno ? "bg-cyan-400" : "bg-neutral-500"}`} />
+                    <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${esMiTurno ? "bg-cyan-400" : "bg-neutral-500"}`} />
+                  </span>
+                )}
                 {terminado ? "Draft terminado" : esMiTurno ? "Tu turno" : "Turno rival"}
               </p>
             </div>

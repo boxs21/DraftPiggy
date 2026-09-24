@@ -2,6 +2,7 @@
 
 import { useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import IconoChamp from "./IconoChamp";
+import { LogoPiggy } from "./Logo";
 import { rolDe, type Equipo, type Jugador, type usePlanteles } from "./usePlanteles";
 import type { Champ } from "@/lib/champs";
 
@@ -29,7 +30,7 @@ export default function Scout({ champsPorId, version, plantel, onIrAlDraft }: Pr
         <button
           type="button"
           onClick={onIrAlDraft}
-          className="whitespace-nowrap rounded-lg border border-cyan-400/50 px-4 py-2 text-sm text-cyan-300 transition hover:bg-cyan-400/10"
+          className="whitespace-nowrap rounded-xl bg-cyan-400/90 px-5 py-2.5 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 hover:shadow-[0_0_24px_rgba(34,211,238,0.35)]"
         >
           Ir al live draft →
         </button>
@@ -67,12 +68,22 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
     if (e.key === "Enter" && texto.trim()) cargar(texto);
   };
 
+  const esNuestro = equipo === "nosotros";
+
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-5">
-      <header className="flex items-center justify-between">
-        <h2 className={`text-xs font-semibold uppercase tracking-[0.25em] ${equipo === "nosotros" ? "text-cyan-300" : "text-neutral-300"}`}>
+    <section className="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 backdrop-blur-sm">
+      {/* linea de color arriba: cian para nosotros, rosa para el rival */}
+      <span
+        className={`absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent ${esNuestro ? "via-cyan-400/70" : "via-rose-400/70"}`}
+      />
+      <span
+        className={`pointer-events-none absolute -top-24 left-1/2 h-40 w-2/3 -translate-x-1/2 rounded-full blur-3xl ${esNuestro ? "bg-cyan-400/[0.07]" : "bg-rose-500/[0.07]"}`}
+      />
+      <header className="relative flex items-center justify-between">
+        <h2 className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] ${esNuestro ? "text-cyan-300" : "text-rose-300"}`}>
+          <span className={`h-2 w-2 rounded-full ${esNuestro ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.9)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.9)]"}`} />
           {titulo}
-          <span className="ml-2 text-neutral-600">{jugadores.length ? `${jugadores.length}` : ""}</span>
+          {jugadores.length > 0 && <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] tracking-normal text-neutral-400">{jugadores.length}</span>}
         </h2>
         {jugadores.length > 0 && (
           <div className="flex gap-2 text-xs">
@@ -87,7 +98,7 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
         )}
       </header>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="relative flex flex-col gap-1.5">
         <input
           value={texto}
           onChange={(e) => {
@@ -98,7 +109,7 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
           onKeyDown={onKeyDown}
           placeholder="Pegá op.gg / u.gg o Nombre#TAG"
           spellCheck={false}
-          className="rounded-lg border border-white/10 bg-black/20 px-4 py-2.5 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-cyan-400/70"
+          className="rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-neutral-100 outline-none transition placeholder:text-neutral-600 focus:border-cyan-400/70 focus:shadow-[0_0_0_4px_rgba(34,211,238,0.08)]"
         />
         <p className="h-4 text-xs text-neutral-500">
           {cargando > 0 ? `Buscando partidas… faltan ${cargando}` : aviso}
@@ -106,11 +117,12 @@ function TarjetaEquipo({ equipo, titulo, champsPorId, version, plantel }: Omit<P
       </div>
 
       {jugadores.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-white/10 text-sm text-neutral-600">
-          Sin jugadores todavía
+        <div className="relative flex h-44 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 text-sm text-neutral-600">
+          <LogoPiggy size={32} className="text-neutral-700" />
+          Pegá un link para empezar
         </div>
       ) : (
-        <ol className="flex flex-col gap-2">
+        <ol className="relative flex flex-col gap-2">
           {ordenados.map((j) => (
             <FilaJugador key={j.riotId} jugador={j} equipo={equipo} {...{ champsPorId, version, plantel }} />
           ))}
@@ -127,7 +139,7 @@ const posRol = (j: Jugador) => {
 
 function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit<Props, "onIrAlDraft"> & { jugador: Jugador; equipo: Equipo }) {
   return (
-    <li className="group flex flex-col gap-2 rounded-lg border border-white/5 bg-black/20 p-3">
+    <li className="group flex animate-aparecer flex-col gap-2 rounded-xl border border-white/[0.05] bg-black/25 p-3 transition hover:border-white/10 hover:bg-white/[0.03]">
       <div className="flex items-center gap-3">
         {/* el rol de ranked no siempre es el del equipo: click y lo cambias */}
         <select
@@ -165,7 +177,13 @@ function FilaJugador({ jugador: j, equipo, champsPorId, version, plantel }: Omit
               const wr = c.victorias / c.partidas;
               return (
                 <div key={c.id} title={`${champ?.nombre ?? c.id} · ${c.partidas} partidas · ${Math.round(wr * 100)}% WR`} className="flex flex-col items-center gap-0.5">
-                  <IconoChamp version={version} id={c.id} nombre={champ?.nombre ?? c.id} size={36} className="rounded" />
+                  <IconoChamp
+                    version={version}
+                    id={c.id}
+                    nombre={champ?.nombre ?? c.id}
+                    size={36}
+                    className="rounded-md ring-1 ring-white/10 transition hover:scale-110 hover:ring-cyan-400/60"
+                  />
                   <span className="text-[10px] text-neutral-400 tabular-nums">
                     {c.partidas}·<span className={wr >= 0.6 ? "text-cyan-300" : wr < 0.45 ? "text-rose-400" : ""}>{Math.round(wr * 100)}%</span>
                   </span>

@@ -13,5 +13,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!entrar|api/entrar|api/cron|_next/static|_next/image|favicon.ico).*)"],
+  // el icono va sin login, sino la pantalla de entrar se queda sin favicon
+  matcher: ["/((?!entrar|api/entrar|api/cron|_next/static|_next/image|icon.svg).*)"],
 };

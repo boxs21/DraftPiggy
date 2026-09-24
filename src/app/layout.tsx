@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Draft Tool",
-  description: "Tablero de draft para scrims y torneos de LoL",
+  title: "Draft Piggy",
+  description: "Scouting y live draft para scrims de LoL, con recomendaciones basadas en pro play",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

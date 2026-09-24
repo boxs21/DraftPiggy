@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import IconoChamp from "./IconoChamp";
+import { LogoPiggy } from "./Logo";
 import type { Side } from "@/lib/draft";
 import type { JugadoresDraft } from "@/lib/riotIds";
 
@@ -77,15 +78,28 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
   const recoVigente = reco && reco.turno === turnoActual ? reco : null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+    <div className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3.5 backdrop-blur-sm">
+      <span className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-cyan-400/50 to-transparent" />
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={pedir}
           disabled={cargando || terminado}
-          className="whitespace-nowrap rounded-md border border-cyan-400/50 px-3 py-1.5 text-sm text-cyan-300 transition hover:bg-cyan-400/10 disabled:opacity-40"
+          className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-cyan-400/90 px-3.5 py-1.5 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.35)] disabled:opacity-40 disabled:hover:shadow-none"
         >
-          {cargando ? "Pensando..." : "Recomendar con IA"}
+          {cargando ? (
+            <>
+              <LogoPiggy size={16} className="animate-flotar" /> Pensando…
+            </>
+          ) : (
+            <>
+              {/* destellito de "IA" */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 2l2.2 6.3L20.5 10.5 14.2 12.7 12 19l-2.2-6.3L3.5 10.5l6.3-2.2L12 2Z" />
+              </svg>
+              Recomendar con IA
+            </>
+          )}
         </button>
         <select
           value={modelo}
@@ -129,16 +143,18 @@ export default function PanelIA({ slots, turnoActual, sideElegido, version, term
           </p>
           <ol className="flex flex-col gap-1.5">
             {recoVigente.opciones.map((o, n) => (
-              <li key={n}>
+              // entran de a una, escalonadas
+              <li key={`${recoVigente.turno}-${n}`} className="animate-aparecer" style={{ animationDelay: `${n * 90}ms` }}>
                 <button
                   type="button"
                   disabled={!o.id || !!o.problema}
                   onClick={() => o.id && onElegir(o.id)}
                   title={o.problema ? `No se puede elegir: ${o.problema}` : "Click para confirmarlo en el draft"}
-                  className="flex w-full items-start gap-3 rounded-md p-1.5 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex w-full items-start gap-3 rounded-xl p-2 text-left transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <span className="mt-2.5 w-3 text-[10px] font-semibold text-neutral-600 tabular-nums">{n + 1}</span>
                   {o.id ? (
-                    <IconoChamp version={version} id={o.id} nombre={o.nombre} size={36} className="rounded" />
+                    <IconoChamp version={version} id={o.id} nombre={o.nombre} size={40} className={`rounded-lg ring-1 ${n === 0 ? "ring-cyan-400/60" : "ring-white/10"}`} />
                   ) : (
                     <div className="h-9 w-9 rounded bg-white/5" />
                   )}

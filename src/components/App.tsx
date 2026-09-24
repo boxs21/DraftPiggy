@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Marca } from "./Logo";
 import Scout from "./Scout";
 import Tablero from "./Tablero";
 import { usePlanteles } from "./usePlanteles";
@@ -10,9 +11,10 @@ import { DRAFT_VACIO, type EstadoDraft, type Side } from "@/lib/draft";
 type Props = { champs: Champ[]; version: string };
 type Pestaña = "scout" | "draft";
 
-const PESTAÑAS: { id: Pestaña; titulo: string }[] = [
-  { id: "scout", titulo: "Scout" },
-  { id: "draft", titulo: "Live draft" },
+// iconos de linea chiquitos para las pestañas: lupa para scout, rayo para el live
+const PESTAÑAS: { id: Pestaña; titulo: string; icono: ReactNode }[] = [
+  { id: "scout", titulo: "Scout", icono: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></> },
+  { id: "draft", titulo: "Live draft", icono: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" /> },
 ];
 
 const sinSuscripcion = () => () => {};
@@ -31,24 +33,41 @@ export default function App({ champs, version }: Props) {
 
   return (
     <div className="flex h-dvh flex-col">
-      <nav className="mx-auto flex w-full max-w-[1400px] items-center gap-10 px-10 pt-6">
-        <div className="flex items-baseline gap-3">
-          <span className="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-200">Draft</span>
-          <span className="text-[11px] text-neutral-600">Parche {parcheDesdeVersion(version)}</span>
-        </div>
-        <div className="flex gap-6">
-          {PESTAÑAS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setPestaña(p.id)}
-              className={`border-b-2 pb-1 text-sm transition ${
-                pestaña === p.id ? "border-cyan-400 text-neutral-100" : "border-transparent text-neutral-500 hover:text-neutral-300"
-              }`}
-            >
-              {p.titulo}
-            </button>
-          ))}
+      <nav className="border-b border-white/[0.06] bg-black/20 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1400px] items-center gap-8 px-10 py-3.5">
+          <Marca />
+
+          <div className="flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+            {PESTAÑAS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPestaña(p.id)}
+                className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition ${
+                  pestaña === p.id
+                    ? "bg-cyan-400/10 text-cyan-200 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35)]"
+                    : "text-neutral-500 hover:text-neutral-200"
+                }`}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {p.icono}
+                </svg>
+                {p.titulo}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto flex items-center gap-4">
+            <span className="flex items-center gap-2 rounded-full border border-white/[0.08] px-3 py-1 text-[11px] text-neutral-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+              Parche {parcheDesdeVersion(version)}
+            </span>
+            <form action="/api/salir" method="post">
+              <button type="submit" title="Cerrar sesión" className="text-xs text-neutral-600 transition hover:text-neutral-300">
+                Salir
+              </button>
+            </form>
+          </div>
         </div>
       </nav>
 

@@ -102,5 +102,5 @@ Picks fase 2: R4 | B4 B5 | R5
 - Constantes de config/colores en SCREAMING_CASE.
 - Comentarios en español, casuales, que expliquen el porqué y no el qué. Nada de JSDoc formal.
 - Textos de la UI en español.
-- Estética: dark minimalista, acentos cyan, mucho espacio negativo.
+- Estética: dark minimalista, acentos cyan, mucho espacio negativo. Marca **Draft Piggy**: logo de chanchito de línea (`components/Logo.tsx`, favicon en `app/icon.svg`). Fondo con brillo cian arriba y los colores de cada side abajo, grilla finita, animaciones suaves (`animate-aparecer`, `animate-revelar`, `animate-flotar` en `globals.css`). Botón principal = cian lleno; blue = sky, red = rose.
 - Componentes chicos y directos, sin sobre-abstraer.

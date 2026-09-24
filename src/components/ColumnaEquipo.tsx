@@ -70,16 +70,27 @@ function CartaPick({ champ, activo, etiqueta, side }: { champ?: Champ; activo: b
       }`}
     >
       {champ && (
-        <>
-          <Image src={urlSplash(champ.id)} alt={champ.nombre} fill sizes="288px" unoptimized className="object-cover object-[center_25%]" />
+        // la key hace que la animacion se repita si cambia el champ del slot (deshacer y elegir otro)
+        <div key={champ.id} className="absolute inset-0">
+          <Image
+            src={urlSplash(champ.id)}
+            alt={champ.nombre}
+            fill
+            sizes="288px"
+            unoptimized
+            className="animate-revelar object-cover object-[center_25%]"
+          />
           {/* degradado para que el nombre se lea sobre cualquier splash */}
           <div className={`absolute inset-0 from-black/90 via-black/55 to-transparent ${esRed ? "bg-linear-to-l" : "bg-linear-to-r"}`} />
-        </>
+          {/* filete del color del side en el borde de afuera */}
+          <div className={`absolute inset-y-0 w-0.5 ${esRed ? "right-0 bg-rose-500/80" : "left-0 bg-sky-500/80"}`} />
+        </div>
       )}
       {activo && <div className="absolute inset-0 animate-pulse bg-cyan-400/[0.04]" />}
       <div className={`relative flex h-full flex-col justify-center px-4 ${esRed ? "items-end text-right" : ""}`}>
         <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">{etiqueta}</span>
-        <span className={`text-base font-medium ${champ ? "text-neutral-50" : "text-cyan-300/80"}`}>
+        <span className={`flex items-center gap-2 text-base font-medium ${champ ? "text-neutral-50 drop-shadow" : "text-cyan-300/80"}`}>
+          {!champ && activo && <span className="h-1.5 w-1.5 animate-ping rounded-full bg-cyan-300" />}
           {champ?.nombre ?? (activo ? "Eligiendo…" : "")}
         </span>
       </div>
